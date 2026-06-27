@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
 <title>Frigurso Canchita</title>
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#4ade80">
@@ -25,6 +25,7 @@
     --shadow: 0 2px 12px rgba(0,0,0,0.4);
     --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --mono: 'SF Mono', 'Fira Code', monospace;
+    --sab: env(safe-area-inset-bottom, 0px);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100dvh; }
@@ -35,7 +36,7 @@
   .nav-bottom {
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
     background: var(--bg2); border-top: 1px solid var(--border);
-    display: flex; height: 58px;
+    display: flex; height: calc(58px + var(--sab)); padding-bottom: var(--sab);
   }
   .nav-btn {
     flex: 1; display: flex; flex-direction: column; align-items: center;
@@ -62,7 +63,7 @@
   }
 
   /* ── PAGES ── */
-  .page { display: none; padding-bottom: 70px; }
+  .page { display: none; padding-bottom: calc(78px + var(--sab)); }
   .page.active { display: block; }
 
   /* ── CARDS ── */
@@ -107,11 +108,12 @@
   /* ── PARTIDOS ── */
   .partido-card {
     background: var(--card); border: 1px solid var(--border); border-radius: 14px;
-    margin-bottom: 10px; overflow: hidden;
+    margin-bottom: 10px; overflow: hidden; cursor: pointer;
   }
   .partido-fecha {
     padding: 8px 14px; background: var(--bg3); border-bottom: 1px solid var(--border);
     font-size: 11px; color: var(--text3); font-weight: 600;
+    display: flex; align-items: center; justify-content: space-between;
   }
   .partido-resultado {
     padding: 14px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -133,6 +135,11 @@
     color: var(--gold); font-size: 10px; font-weight: 700;
     padding: 3px 9px; border-radius: 99px;
   }
+  .btn-share {
+    background: transparent; border: none; color: var(--text3);
+    font-size: 15px; padding: 2px 6px; cursor: pointer; line-height: 1;
+  }
+  .btn-share:active { color: var(--accent); }
 
   /* ── ESTADÍSTICAS ── */
   .stats-tabla { width: 100%; border-collapse: collapse; }
@@ -146,6 +153,15 @@
   .rank-1 { color: var(--gold); font-weight: 800; }
   .rank-2 { color: #e2e8f0; font-weight: 700; }
   .rank-3 { color: #cd7c39; font-weight: 700; }
+  .stats-toggle {
+    display: inline-flex; border-radius: 8px; overflow: hidden;
+    border: 1px solid var(--border); flex-shrink: 0;
+  }
+  .stats-toggle button {
+    padding: 5px 12px; font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; background: var(--bg3); color: var(--text3); border: none; cursor: pointer;
+  }
+  .stats-toggle button.act { background: rgba(74,222,128,0.15); color: var(--accent); }
 
   /* ── MODALS / FORMULARIOS ── */
   .modal-overlay {
@@ -156,7 +172,7 @@
   .modal-overlay.open { opacity: 1; pointer-events: all; }
   .modal {
     background: var(--bg2); border-radius: 20px 20px 0 0; width: 100%; max-width: 520px;
-    padding: 20px 18px 30px; border-top: 1px solid var(--border);
+    padding: 20px 18px calc(30px + var(--sab)); border-top: 1px solid var(--border);
     transform: translateY(100%); transition: transform 0.25s;
     max-height: 90dvh; overflow-y: auto;
   }
@@ -180,7 +196,7 @@
   .btn-ghost {
     width: 100%; padding: 12px; border-radius: 12px;
     border: 1px solid var(--border); background: transparent; color: var(--text3);
-    font-size: 14px; font-weight: 600;
+    font-size: 14px; font-weight: 600; margin-bottom: 8px;
   }
   .btn-danger {
     width: 100%; padding: 12px; border-radius: 12px;
@@ -204,7 +220,7 @@
 
   /* ── FAB ── */
   .fab {
-    position: fixed; bottom: 70px; right: 16px; z-index: 80;
+    position: fixed; bottom: calc(68px + var(--sab)); right: 16px; z-index: 80;
     width: 56px; height: 56px; border-radius: 50%;
     background: var(--accent); color: #0f1a0f;
     font-size: 28px; font-weight: 400; box-shadow: 0 4px 16px rgba(74,222,128,0.4);
@@ -212,19 +228,9 @@
   }
   .fab:active { transform: scale(0.93); }
 
-  /* ── CANCHA VISUAL ── */
-  .cancha-svg { width: 100%; max-width: 360px; margin: 0 auto; display: block; }
-  .pos-btn {
-    background: var(--bg3); border: 1px solid var(--border); border-radius: 99px;
-    padding: 6px 12px; font-size: 11px; font-weight: 700; color: var(--text2);
-    display: inline-flex; align-items: center; gap: 5px; margin: 3px;
-    cursor: pointer;
-  }
-  .pos-btn.ok { background: rgba(74,222,128,0.12); border-color: var(--accent); color: var(--accent); }
-
   /* ── TOAST ── */
   .toast {
-    position: fixed; bottom: 75px; left: 50%; transform: translateX(-50%) translateY(20px);
+    position: fixed; bottom: calc(75px + var(--sab)); left: 50%; transform: translateX(-50%) translateY(20px);
     background: var(--accent); color: #0f1a0f; padding: 9px 20px; border-radius: 99px;
     font-size: 13px; font-weight: 700; opacity: 0; transition: all 0.25s; z-index: 9999;
     white-space: nowrap; pointer-events: none;
@@ -235,10 +241,15 @@
   .empty-icon { font-size: 56px; margin-bottom: 12px; }
   .empty-text { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
   .empty-sub { font-size: 12px; color: var(--text3); }
-  .sep { height: 1px; background: var(--border); margin: 8px 0; }
+  .sep { height: 1px; background: var(--border); margin: 10px 0; }
   .tag { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; }
   .tag-g { background: rgba(74,222,128,0.15); color: var(--accent); }
   .tag-r { background: rgba(248,113,113,0.15); color: var(--red); }
+  .label-btn {
+    display: block; width: 100%; padding: 12px; border-radius: 12px;
+    border: 1px solid var(--border); background: transparent; color: var(--text3);
+    font-size: 14px; font-weight: 600; text-align: center; cursor: pointer; margin-bottom: 8px;
+  }
 </style>
 </head>
 <body>
@@ -262,10 +273,11 @@
 <!-- ── HOME ── -->
 <div class="page active" id="page-home">
   <div class="header">
-    <div>
+    <div style="flex:1">
       <div class="header-title">⚽ Frigurso Canchita</div>
       <div class="header-sub" id="home-sub">Cargando...</div>
     </div>
+    <button class="btn-icon" onclick="abrirModal('opciones')">⚙️</button>
   </div>
   <div class="kpi-grid" id="kpi-grid"></div>
   <div class="section">
@@ -302,7 +314,13 @@
     <div class="header-title">📊 Estadísticas</div>
   </div>
   <div style="padding:14px">
-    <div class="section-title">Ranking de goleadores</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="section-title" style="margin-bottom:0">Goleadores</div>
+      <div class="stats-toggle">
+        <button id="tog-activos" class="act" onclick="setStatsVer('activos')">Con goles</button>
+        <button id="tog-todos" onclick="setStatsVer('todos')">Todos</button>
+      </div>
+    </div>
     <div class="card" style="padding:0;overflow:hidden">
       <table class="stats-tabla" id="stats-goles"></table>
     </div>
@@ -378,6 +396,21 @@
     <button class="btn-primary" onclick="guardarPartido()">Guardar partido</button>
     <button class="btn-danger" id="btn-borrar-partido" onclick="borrarPartido()" style="display:none">🗑 Borrar partido</button>
     <button class="btn-ghost" onclick="cerrarModal('partido')">Cancelar</button>
+  </div>
+</div>
+
+<!-- ── MODAL: OPCIONES ── -->
+<div class="modal-overlay" id="modal-opciones" onclick="if(event.target===this)cerrarModal('opciones')">
+  <div class="modal">
+    <div class="modal-title">⚙️ Opciones</div>
+    <button class="btn-primary" onclick="exportarDatos()">📦 Exportar backup (JSON)</button>
+    <label class="label-btn">
+      📥 Importar backup
+      <input type="file" accept=".json" style="display:none" onchange="importarDatos(event)">
+    </label>
+    <div class="sep"></div>
+    <button class="btn-ghost" onclick="forzarUpdate()">🔄 Forzar actualización de app</button>
+    <button class="btn-ghost" onclick="cerrarModal('opciones')">Cerrar</button>
   </div>
 </div>
 
@@ -463,8 +496,7 @@ function renderHome() {
     '</div>'
   ).join('');
 
-  // Último partido
-  const up = [...DB.partidos].sort((a,b)=>b.fecha>a.fecha?1:-1)[0];
+  const up = [...DB.partidos].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];
   const upEl = document.getElementById('ultimo-partido');
   if (up) {
     upEl.innerHTML = renderPartidoCard(up);
@@ -472,7 +504,6 @@ function renderHome() {
     upEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Todavía no hay partidos</div>';
   }
 
-  // Top goleadores
   const topEl = document.getElementById('top-goleadores');
   const topG = DB.jugadores
     .map(j => ({j, g: stats.goles[j.id]||0}))
@@ -561,7 +592,6 @@ function borrarJugador() {
   const j = DB.jugadores.find(x=>x.id===id);
   if (!j || !confirm('¿Borrar a '+j.nombre+'?')) return;
   DB.jugadores = DB.jugadores.filter(x=>x.id!==id);
-  // limpiar goles y apariciones
   DB.partidos.forEach(p => {
     p.eq1 = (p.eq1||[]).filter(x=>x!==id);
     p.eq2 = (p.eq2||[]).filter(x=>x!==id);
@@ -584,7 +614,10 @@ function renderPartidoCard(p) {
   const col1 = g1>g2?'var(--accent)':g1<g2?'var(--red)':'var(--text)';
   const col2 = g2>g1?'var(--accent)':g2<g1?'var(--red)':'var(--text)';
   return '<div class="partido-card" onclick="abrirModalPartido(\''+p.id+'\')">'+
-    '<div class="partido-fecha">🗓 '+fmtFecha(p.fecha)+'</div>'+
+    '<div class="partido-fecha">'+
+      '<span>🗓 '+fmtFecha(p.fecha)+'</span>'+
+      '<button class="btn-share" onclick="compartirPartido(\''+p.id+'\',event)">↗️</button>'+
+    '</div>'+
     '<div class="partido-resultado">'+
       '<div class="partido-equipo">'+
         '<div class="partido-eq-nombre">⚪ Equipo 1</div>'+
@@ -602,12 +635,32 @@ function renderPartidoCard(p) {
 
 function renderPartidos() {
   const el = document.getElementById('partidos-lista');
-  const partidos = [...DB.partidos].sort((a,b)=>b.fecha>a.fecha?1:-1);
+  const partidos = [...DB.partidos].sort((a,b)=>b.fecha.localeCompare(a.fecha));
   if (!partidos.length) {
     el.innerHTML = '<div class="empty"><div class="empty-icon">⚽</div><div class="empty-text">Sin partidos</div><div class="empty-sub">Tocá + para cargar uno</div></div>';
     return;
   }
   el.innerHTML = partidos.map(p => renderPartidoCard(p)).join('');
+}
+
+function compartirPartido(id, e) {
+  e.stopPropagation();
+  const p = DB.partidos.find(x=>x.id===id);
+  if (!p) return;
+  const eq1 = (p.eq1||[]).map(getNombre).join(', ') || '—';
+  const eq2 = (p.eq2||[]).map(getNombre).join(', ') || '—';
+  const goleadores = (p.goles||[]).map(g=>getNombre(g.jugId)).join(', ');
+  const texto = '⚽ Frigurso Canchita — ' + fmtFecha(p.fecha) +
+    '\n⚪ Equipo 1 (' + eq1 + '): ' + (p.g1||0) +
+    '\n⚫ Equipo 2 (' + eq2 + '): ' + (p.g2||0) +
+    (goleadores ? '\n⚽ Goles: ' + goleadores : '');
+  if (navigator.share) {
+    navigator.share({ title: 'Frigurso Canchita', text: texto }).catch(()=>{});
+  } else {
+    navigator.clipboard.writeText(texto)
+      .then(() => toast('📋 Copiado al portapapeles'))
+      .catch(() => toast('No se pudo copiar'));
+  }
 }
 
 // ── MODAL PARTIDO ──
@@ -665,7 +718,6 @@ function renderGolesEditar() {
   const allJugs = DB.jugadores.filter(j => _eq1Sel.includes(j.id) || _eq2Sel.includes(j.id));
   const c = document.getElementById('goles-editar');
 
-  // Ensure we have enough gol rows
   while (_golesEditar.length < totalGoles) _golesEditar.push({ jugId: '', eq: 1 });
   if (_golesEditar.length > totalGoles) _golesEditar = _golesEditar.slice(0, totalGoles);
 
@@ -696,9 +748,7 @@ function guardarPartido() {
   const g1 = parseInt(document.getElementById('p-g1').value) || 0;
   const g2 = parseInt(document.getElementById('p-g2').value) || 0;
   const id = document.getElementById('p-id').value;
-
   const goles = _golesEditar.filter(g => g.jugId);
-
   const data = {
     id: id || uid(),
     fecha, g1, g2,
@@ -729,11 +779,22 @@ function borrarPartido() {
 }
 
 // ─── STATS ─────────────────────────────────────────────────────
+let _statsVerTodos = false;
+
+function setStatsVer(modo) {
+  _statsVerTodos = modo === 'todos';
+  document.getElementById('tog-activos').classList.toggle('act', !_statsVerTodos);
+  document.getElementById('tog-todos').classList.toggle('act', _statsVerTodos);
+  renderStats();
+}
+
 function renderStats() {
   const stats = computeStats();
 
-  // Goleadores
-  const golTop = DB.jugadores.map(j => ({j, g: stats.goles[j.id]||0})).sort((a,b)=>b.g-a.g);
+  const golTop = DB.jugadores
+    .map(j => ({j, g: stats.goles[j.id]||0}))
+    .filter(x => _statsVerTodos || x.g > 0)
+    .sort((a,b) => b.g - a.g);
   const gEl = document.getElementById('stats-goles');
   gEl.innerHTML = '<tr><th>#</th><th>Jugador</th><th>Posición</th><th style="text-align:right">Goles ⚽</th></tr>' +
     (golTop.length ? golTop.map((x, i) =>
@@ -743,8 +804,10 @@ function renderStats() {
       '<td style="text-align:right;font-family:var(--mono);font-weight:800;color:var(--gold)">'+x.g+'</td></tr>'
     ).join('') : '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text3)">Sin datos</td></tr>');
 
-  // Más jugados
-  const jugTop = DB.jugadores.map(j => ({j, n: stats.jugados[j.id]||0})).sort((a,b)=>b.n-a.n);
+  const jugTop = DB.jugadores
+    .map(j => ({j, n: stats.jugados[j.id]||0}))
+    .filter(x => _statsVerTodos || x.n > 0)
+    .sort((a,b) => b.n - a.n);
   const pEl = document.getElementById('stats-partidos');
   pEl.innerHTML = '<tr><th>#</th><th>Jugador</th><th style="text-align:right">Partidos 🗓</th></tr>' +
     (jugTop.length ? jugTop.map((x, i) =>
@@ -752,6 +815,56 @@ function renderStats() {
       '<td style="font-weight:700">'+esc(x.j.nombre)+'</td>'+
       '<td style="text-align:right;font-family:var(--mono);font-weight:800;color:var(--accent)">'+x.n+'</td></tr>'
     ).join('') : '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text3)">Sin datos</td></tr>');
+}
+
+// ─── OPCIONES ──────────────────────────────────────────────────
+function exportarDatos() {
+  const json = JSON.stringify(DB, null, 2);
+  const blob = new Blob([json], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'canchita-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('📦 Backup descargado');
+}
+
+function importarDatos(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const d = JSON.parse(ev.target.result);
+      if (!d.jugadores || !d.partidos) throw new Error();
+      if (!confirm('¿Reemplazar todos los datos con el backup? No se puede deshacer.')) {
+        e.target.value = '';
+        return;
+      }
+      DB = d;
+      save();
+      renderHome();
+      cerrarModal('opciones');
+      toast('✅ Datos importados');
+    } catch(_) {
+      toast('❌ Archivo inválido');
+      e.target.value = '';
+    }
+  };
+  reader.readAsText(file);
+}
+
+function forzarUpdate() {
+  if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
+    toast('ℹ️ Sin actualizaciones pendientes');
+    return;
+  }
+  navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+  navigator.serviceWorker.addEventListener('controllerchange', () => location.reload());
+  toast('🔄 Actualizando...');
 }
 
 // ─── MODALS ────────────────────────────────────────────────────
