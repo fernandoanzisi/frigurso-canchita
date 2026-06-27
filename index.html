@@ -788,7 +788,10 @@ function renderSorteoSetup() {
   document.getElementById('sorteo-content').innerHTML=
     '<div class="field-label" style="margin-bottom:8px">Seleccioná los jugadores presentes</div>'+
     '<div class="pill-sel" id="sorteo-pills">'+
-      DB.jugadores.map(j=>'<button class="pill '+(_sorteoSel.includes(j.id)?'sel':'')+'" onclick="toggleSorteo(\''+j.id+'\')">'+esc(j.nombre)+'</button>').join('')+
+      DB.jugadores.map(j=>'<button class="pill '+(_sorteoSel.includes(j.id)?'sel':'')+'" onclick="toggleSorteo(\''+j.id+'\')" style="display:flex;flex-direction:column;align-items:center;gap:1px;padding:8px 12px">'+
+        '<span>'+esc(j.nombre)+'</span>'+
+        (j.posicion?'<span style="font-size:9px;opacity:.65;font-weight:600">'+esc(j.posicion)+'</span>':'')+
+      '</button>').join('')+
     '</div><div style="height:10px"></div>';
   const btn=document.getElementById('sorteo-btn-primario');
   btn.textContent='🔀 Sortear';
@@ -805,20 +808,52 @@ function toggleSorteo(id) {
   });
 }
 
+function getPosJug(id){const j=DB.jugadores.find(x=>x.id===id);return(j&&j.posicion)||'';}
+function abrevPos(p){return{Arquero:'ARQ',Defensor:'DEF',Mediocampista:'MED',Delantero:'DEL'}[p]||'';}
+
 function ejecutarSorteo() {
   if(_sorteoSel.length<2){toast('⚠️ Seleccioná al menos 2 jugadores');return;}
-  const sh=[..._sorteoSel].sort(()=>Math.random()-.5);
-  const mid=Math.ceil(sh.length/2);
-  _sorteoResult={eq1:sh.slice(0,mid),eq2:sh.slice(mid)};
-  const {eq1,eq2}=_sorteoResult;
+  // Ordenar posiciones: arqueros primero para garantizar balance
+  const ORDEN=['Arquero','Defensor','Mediocampista','Delantero',''];
+  const grupos={};
+  ORDEN.forEach(p=>grupos[p]=[]);
+  _sorteoSel.forEach(id=>{const pos=getPosJug(id);grupos[pos].push(id);});
+
+  const eq1=[],eq2=[];
+  ORDEN.forEach(pos=>{
+    // Mezclar aleatoriamente dentro de cada grupo de posición
+    const gr=[...grupos[pos]].sort(()=>Math.random()-.5);
+    gr.forEach(id=>{
+      // Siempre asignar al equipo con menos jugadores para mantener balance
+      (eq1.length<=eq2.length?eq1:eq2).push(id);
+    });
+  });
+
+  _sorteoResult={eq1,eq2};
+
+  // Detectar conflictos de posición
+  const avisos=[];
+  ORDEN.filter(p=>p).forEach(pos=>{
+    const n1=eq1.filter(id=>getPosJug(id)===pos).length;
+    const n2=eq2.filter(id=>getPosJug(id)===pos).length;
+    if(n1>1&&n2===0) avisos.push('⚠️ Equipo 1 tiene '+n1+' '+pos+'s');
+    if(n2>1&&n1===0) avisos.push('⚠️ Equipo 2 tiene '+n2+' '+pos+'s');
+  });
+
+  function chipJug(id){
+    const ab=abrevPos(getPosJug(id));
+    return '<span style="display:inline-block;margin:2px 3px">'+esc(getNombre(id))+(ab?'<span style="font-size:9px;color:var(--text3);font-weight:700;margin-left:3px">'+ab+'</span>':'')+'</span>';
+  }
+
   document.getElementById('sorteo-content').innerHTML=
     '<div class="sorteo-resultado">'+
       '<div style="margin-bottom:10px"><div class="sorteo-eq-title">⚪ Equipo 1 ('+eq1.length+')</div>'+
-      '<div class="sorteo-eq-names">'+eq1.map(id=>esc(getNombre(id))).join(', ')+'</div></div>'+
+      '<div class="sorteo-eq-names" style="line-height:1.8">'+eq1.map(chipJug).join('<span style="color:var(--text3)"> · </span>')+'</div></div>'+
       '<div class="sep"></div>'+
       '<div><div class="sorteo-eq-title">⚫ Equipo 2 ('+eq2.length+')</div>'+
-      '<div class="sorteo-eq-names">'+eq2.map(id=>esc(getNombre(id))).join(', ')+'</div></div>'+
-    '</div>';
+      '<div class="sorteo-eq-names" style="line-height:1.8">'+eq2.map(chipJug).join('<span style="color:var(--text3)"> · </span>')+'</div></div>'+
+    '</div>'+
+    (avisos.length?'<div style="background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--gold)">'+avisos.join('<br>')+'</div>':'');
   const btn=document.getElementById('sorteo-btn-primario');
   btn.textContent='↗ Abrir como partido';
   btn.onclick=usarSorteoComoPartido;
