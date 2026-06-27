@@ -725,9 +725,9 @@ function toggleEq(jugId, eq) {
   renderPillsEq();
 }
 
-function updateGolesInput() { renderGolesEditar(); }
+function updateGolesInput() { renderGolesEditar(true); }
 
-function renderGolesEditar() {
+function renderGolesEditar(sync = false) {
   const g1 = parseInt(document.getElementById('p-g1').value) || 0;
   const g2 = parseInt(document.getElementById('p-g2').value) || 0;
   const totalGoles = g1 + g2;
@@ -735,7 +735,7 @@ function renderGolesEditar() {
   const c = document.getElementById('goles-editar');
 
   while (_golesEditar.length < totalGoles) _golesEditar.push({ jugId: '', eq: 1 });
-  if (_golesEditar.length > totalGoles) _golesEditar = _golesEditar.slice(0, totalGoles);
+  if (sync && _golesEditar.length > totalGoles) _golesEditar = _golesEditar.slice(0, totalGoles);
 
   if (!allJugs.length) {
     c.innerHTML = '<div style="font-size:12px;color:var(--text3)">Seleccioná los jugadores primero</div>';
