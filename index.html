@@ -127,7 +127,7 @@
   .label-btn{display:block;width:100%;padding:12px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--text3);font-size:14px;font-weight:600;text-align:center;cursor:pointer;margin-bottom:8px}
 
   /* PERFIL */
-  .perfil-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+  .perfil-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
   .perfil-stat-box{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 6px;text-align:center}
   .perfil-stat-val{font-size:20px;font-weight:900;color:var(--accent);font-family:var(--mono)}
   .perfil-stat-lbl{font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
@@ -267,6 +267,7 @@
       </select>
     </div>
     <div class="field-wrap"><div class="field-label">Número (opcional)</div><input type="number" class="input" id="j-num" placeholder="10" min="1" max="99"></div>
+    <div class="field-wrap"><div class="field-label">Teléfono / WhatsApp (opcional)</div><input type="tel" class="input" id="j-tel" placeholder="Ej: 5492994123456 (con código de país)"></div>
     <button class="btn-primary" onclick="guardarJugador()">Guardar</button>
     <button class="btn-danger" id="btn-borrar-jugador" onclick="borrarJugador()" style="display:none">🗑 Borrar jugador</button>
     <button class="btn-ghost" onclick="cerrarModal('jugador')">Cancelar</button>
@@ -293,6 +294,10 @@
       <div class="field-label">⚽ Goleadores</div>
       <div id="goles-editar" class="goles-lista-editar"></div>
       <button onclick="agregarFilaGol()" style="margin-top:8px;padding:7px 14px;border-radius:8px;background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.25);color:var(--accent);font-size:12px;font-weight:700">+ Agregar goleador</button>
+    </div>
+    <div class="field-wrap">
+      <div class="field-label">⭐ Calificación de jugadores (1-10)</div>
+      <div id="calif-editar" class="goles-lista-editar"></div>
     </div>
     <div class="field-wrap"><div class="field-label">Nota (opcional)</div><input type="text" class="input" id="p-nota" placeholder="Ej: cancha de cemento, llovía..."></div>
     <button class="btn-primary" onclick="guardarPartido()">Guardar partido</button>
@@ -326,6 +331,7 @@
     </div>
     <div class="perfil-stats" id="perfil-stats"></div>
     <div class="perfil-wdl" id="perfil-wdl"></div>
+    <div id="perfil-tel" style="margin-bottom:10px"></div>
     <div class="sep"></div>
     <div class="section-title" style="margin-bottom:8px">Últimos partidos</div>
     <div id="perfil-historial"></div>
@@ -588,6 +594,8 @@ function abrirPerfil(id) {
   const g=stats.goles[id]||0, n=stats.jugados[id]||0;
   const w=stats.wins[id]||0, d=stats.draws[id]||0, l=stats.losses[id]||0;
   const avg=n>0?(g/n).toFixed(1):'0.0';
+  const califs=DB.partidos.filter(p=>!p.suspendido&&p.calificaciones&&p.calificaciones[id]!=null).map(p=>p.calificaciones[id]);
+  const avgCalif=califs.length?(califs.reduce((a,b)=>a+b,0)/califs.length).toFixed(1):'—';
 
   document.getElementById('perfil-avatar').textContent=iniciales(j.nombre);
   document.getElementById('perfil-nombre').textContent=(j.numero?'#'+j.numero+' ':'')+j.nombre;
@@ -600,8 +608,12 @@ function abrirPerfil(id) {
   };
 
   document.getElementById('perfil-stats').innerHTML=[
-    [g,'Goles'],[n,'Partidos'],[avg,'Prom/PJ']
+    [g,'Goles'],[n,'Partidos'],[avg,'Prom/PJ'],[avgCalif,'⭐ Prom']
   ].map(([v,lb])=>'<div class="perfil-stat-box"><div class="perfil-stat-val">'+v+'</div><div class="perfil-stat-lbl">'+lb+'</div></div>').join('');
+
+  document.getElementById('perfil-tel').innerHTML = j.telefono
+    ? '<button class="btn-ghost" style="display:flex;align-items:center;justify-content:center;gap:8px" onclick="preguntarSiViene(\''+j.id+'\')">📲 Preguntar si viene (WhatsApp)</button>'
+    : '<div style="font-size:11px;color:var(--text3);text-align:center">Sin teléfono cargado — tocá ✏️ para agregarlo</div>';
 
   document.getElementById('perfil-wdl').innerHTML=[
     [w,'G','rgba(74,222,128,.15)','var(--accent)'],
@@ -621,6 +633,7 @@ function abrirPerfil(id) {
     const enEq1=(p.eq1||[]).includes(id);
     const g1=p.g1||0,g2=p.g2||0;
     const miG=(p.goles||[]).filter(g=>g.jugId===id).length;
+    const miCalif=p.calificaciones&&p.calificaciones[id];
     let res,cls;
     if(g1===g2){res='E';cls='res-d';}
     else if((enEq1&&g1>g2)||(!enEq1&&g2>g1)){res='G';cls='res-w';}
@@ -635,10 +648,23 @@ function abrirPerfil(id) {
       '<div style="text-align:right;flex-shrink:0">'+
         '<div style="font-size:13px;font-weight:800;font-family:var(--mono);color:var(--text)">'+g1+' - '+g2+'</div>'+
         (miG>0?'<div style="font-size:10px;color:var(--gold)">'+miG+' ⚽</div>':'')+
+        (miCalif?'<div style="font-size:10px;color:var(--text2)">⭐ '+miCalif+'</div>':'')+
       '</div></div>';
   }).join('') : '<div style="text-align:center;padding:20px;color:var(--text3)">Sin partidos registrados</div>';
 
   abrirModal('perfil');
+}
+
+function preguntarSiViene(jugId) {
+  const j=DB.jugadores.find(x=>x.id===jugId);
+  if(!j||!j.telefono){toast('⚠️ Sin teléfono cargado');return;}
+  const tel=j.telefono.replace(/\D/g,'');
+  if(!tel){toast('⚠️ Teléfono inválido');return;}
+  const prox=DB.proximoPartido;
+  const msg=prox
+    ?'Hola '+j.nombre+'! ⚽ ¿Vas al partido del '+fmtMes(prox.fecha)+(prox.hora?' a las '+prox.hora:'')+'? Respondé Sí o No 🙌'
+    :'Hola '+j.nombre+'! ⚽ ¿Vas al próximo partido? Respondé Sí o No 🙌';
+  window.open('https://wa.me/'+tel+'?text='+encodeURIComponent(msg),'_blank');
 }
 
 function abrirModalJugador(id) {
@@ -647,6 +673,7 @@ function abrirModalJugador(id) {
   document.getElementById('j-nombre').value=j?j.nombre:'';
   document.getElementById('j-pos').value=j?(j.posicion||''):'';
   document.getElementById('j-num').value=j?(j.numero||''):'';
+  document.getElementById('j-tel').value=j?(j.telefono||''):'';
   document.getElementById('modal-jugador-title').textContent=j?'Editar jugador':'Nuevo jugador';
   document.getElementById('btn-borrar-jugador').style.display=j?'':'none';
   abrirModal('jugador');
@@ -657,7 +684,7 @@ function guardarJugador() {
   const nombre=document.getElementById('j-nombre').value.trim();
   if(!nombre){toast('⚠️ Ingresá un nombre');return;}
   const id=document.getElementById('j-id').value;
-  const data={id:id||uid(),nombre,posicion:document.getElementById('j-pos').value,numero:parseInt(document.getElementById('j-num').value)||null};
+  const data={id:id||uid(),nombre,posicion:document.getElementById('j-pos').value,numero:parseInt(document.getElementById('j-num').value)||null,telefono:document.getElementById('j-tel').value.trim()||null};
   if(id){const idx=DB.jugadores.findIndex(j=>j.id===id);if(idx>=0)DB.jugadores[idx]=data;}
   else DB.jugadores.push(data);
   save(); cerrarModal('jugador'); renderJugadores();
@@ -693,6 +720,12 @@ function renderPartidoCard(p) {
   const golesHtml=(p.goles||[]).length
     ?(p.goles||[]).map(g=>'<span class="gol-chip">⚽ '+esc(getNombre(g.jugId))+'</span>').join('')
     :'<span style="font-size:11px;color:var(--text3)">Sin goleadores registrados</span>';
+  let figuraHtml='';
+  if(!p.suspendido&&p.calificaciones&&Object.keys(p.calificaciones).length){
+    let bestId=null,bestVal=-1;
+    Object.entries(p.calificaciones).forEach(([jid,val])=>{if(val>bestVal){bestVal=val;bestId=jid;}});
+    if(bestId) figuraHtml='<div class="partido-nota">⭐ Figura del partido: '+esc(getNombre(bestId))+' ('+bestVal+')</div>';
+  }
   return '<div class="partido-card'+(p.suspendido?' suspendido':'')+'" onclick="abrirModalPartido(\''+p.id+'\')">'+
     '<div class="partido-fecha"><span>🗓 '+fmtFecha(p.fecha)+(p.suspendido?' · <span style="color:var(--red)">suspendido</span>':'')+'</span><button class="btn-share" onclick="compartirPartido(\''+p.id+'\',event)">↗️</button></div>'+
     '<div class="partido-resultado">'+
@@ -701,6 +734,7 @@ function renderPartidoCard(p) {
       '<div class="partido-equipo partido-eq2"><div class="partido-eq-nombre">'+esc(eq2Nombre)+' ⚫</div><div class="partido-eq-nombres">'+esc(eq2Names)+'</div></div>'+
     '</div>'+
     (p.suspendido?'':'<div class="partido-goles-lista">'+golesHtml+'</div>')+
+    figuraHtml+
     (p.nota?'<div class="partido-nota">📝 '+esc(p.nota)+'</div>':'')+
   '</div>';
 }
@@ -726,7 +760,7 @@ function compartirPartido(id,e) {
   else navigator.clipboard.writeText(texto).then(()=>toast('📋 Copiado')).catch(()=>toast('No se pudo copiar'));
 }
 
-let _eq1Sel=[],_eq2Sel=[],_golesEditar=[],_suspendido=false;
+let _eq1Sel=[],_eq2Sel=[],_golesEditar=[],_suspendido=false,_califEditar={};
 
 function abrirModalPartido(id) {
   const p=id?DB.partidos.find(x=>x.id===id):null;
@@ -740,10 +774,24 @@ function abrirModalPartido(id) {
   _eq2Sel=p?[...(p.eq2||[])]:[];
   _golesEditar=p?(p.goles||[]).map(g=>({...g})):[];
   _suspendido=p?!!p.suspendido:false;
+  _califEditar=p?{...(p.calificaciones||{})}:{};
   document.getElementById('p-g1').value=p?(p.g1||0):0;
   document.getElementById('p-g2').value=p?(p.g2||0):0;
   document.getElementById('p-nota').value=p?(p.nota||''):'';
-  renderPillsEq(); renderGolesEditar(); renderSuspendidoToggle(); abrirModal('partido');
+  renderPillsEq(); renderGolesEditar(); renderSuspendidoToggle(); renderCalifEditar(); abrirModal('partido');
+}
+
+function renderCalifEditar() {
+  const allJugs=DB.jugadores.filter(j=>_eq1Sel.includes(j.id)||_eq2Sel.includes(j.id));
+  const c=document.getElementById('calif-editar');
+  if(!allJugs.length){c.innerHTML='<div style="font-size:12px;color:var(--text3)">Seleccioná los jugadores primero</div>';return;}
+  c.innerHTML=allJugs.map(j=>{
+    const val=_califEditar[j.id]||'';
+    const opts=Array.from({length:10},(_,i)=>i+1).map(n=>'<option value="'+n+'" '+(String(val)===String(n)?'selected':'')+'>'+n+'</option>').join('');
+    return '<div class="gol-row"><div style="flex:1;font-size:13px;font-weight:600;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(j.nombre)+'</div>'+
+      '<select class="input" style="flex:0 0 68px;padding:8px 6px" onchange="_califEditar[\''+j.id+'\']=this.value?parseInt(this.value):undefined">'+
+      '<option value="">—</option>'+opts+'</select></div>';
+  }).join('');
 }
 
 function toggleSuspendido() { _suspendido=!_suspendido; renderSuspendidoToggle(); }
@@ -769,6 +817,7 @@ function toggleEq(jugId,eq) {
   if(eq===1){if(_eq1Sel.includes(jugId))_eq1Sel=_eq1Sel.filter(x=>x!==jugId);else _eq1Sel.push(jugId);}
   else{if(_eq2Sel.includes(jugId))_eq2Sel=_eq2Sel.filter(x=>x!==jugId);else _eq2Sel.push(jugId);}
   renderPillsEq();
+  renderCalifEditar();
 }
 
 function updateGolesInput(){renderGolesEditar(true);}
@@ -800,11 +849,15 @@ function guardarPartido() {
   const id=document.getElementById('p-id').value;
   const nombreEq1=document.getElementById('p-eq1-nombre').value.trim();
   const nombreEq2=document.getElementById('p-eq2-nombre').value.trim();
-  const data={id:id||uid(),fecha,g1,g2,eq1:[..._eq1Sel],eq2:[..._eq2Sel],goles:_golesEditar.filter(g=>g.jugId),nota:nota||undefined,nombreEq1:nombreEq1||undefined,nombreEq2:nombreEq2||undefined,suspendido:_suspendido||undefined};
+  const eqTodos=new Set([..._eq1Sel,..._eq2Sel]);
+  const calificaciones={};
+  Object.keys(_califEditar).forEach(jid=>{if(eqTodos.has(jid)&&_califEditar[jid])calificaciones[jid]=_califEditar[jid];});
+  const data={id:id||uid(),fecha,g1,g2,eq1:[..._eq1Sel],eq2:[..._eq2Sel],goles:_golesEditar.filter(g=>g.jugId),nota:nota||undefined,nombreEq1:nombreEq1||undefined,nombreEq2:nombreEq2||undefined,suspendido:_suspendido||undefined,calificaciones:Object.keys(calificaciones).length?calificaciones:undefined};
   if(!nota) delete data.nota;
   if(!nombreEq1) delete data.nombreEq1;
   if(!nombreEq2) delete data.nombreEq2;
   if(!data.suspendido) delete data.suspendido;
+  if(!data.calificaciones) delete data.calificaciones;
   if(id){const idx=DB.partidos.findIndex(p=>p.id===id);if(idx>=0)DB.partidos[idx]=data;}
   else DB.partidos.push(data);
   save(); cerrarModal('partido'); renderPartidos(); toast('✅ Partido guardado');
