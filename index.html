@@ -419,6 +419,11 @@
       <div class="field-label">⭐ Calificación de jugadores (1-10)</div>
       <div id="calif-editar" class="goles-lista-editar"></div>
     </div>
+    <div class="field-wrap">
+      <div class="field-label">💵 Cuota del partido (opcional)</div>
+      <input type="number" class="input" id="p-cuota-monto" placeholder="Monto por jugador, ej: 6000" min="0" style="margin-bottom:8px" oninput="renderCuotaEditar()">
+      <div id="cuota-editar" class="goles-lista-editar"></div>
+    </div>
     <div class="field-wrap"><div class="field-label">Nota (opcional)</div><input type="text" class="input" id="p-nota" placeholder="Ej: cancha de cemento, llovía..."></div>
     <button class="btn-primary" onclick="guardarPartido()">Guardar partido</button>
     <button class="btn-danger" id="btn-borrar-partido" onclick="borrarPartido()" style="display:none">🗑 Borrar partido</button>
@@ -1070,6 +1075,12 @@ function renderPartidoCard(p) {
     if(bestId) figuraHtml='<div class="partido-nota">⭐ Figura del partido: '+esc(getNombre(bestId))+' ('+bestVal+')</div>';
   }
   const formatoHtml=p.formato?' <span class="tag" style="background:rgba(96,165,250,.15);color:var(--blue)">'+p.formato+'</span>':'';
+  let cuotaHtml='';
+  if(!p.suspendido&&p.cuotaMonto){
+    const totalJugs=new Set([...(p.eq1||[]),...(p.eq2||[])]).size;
+    const pagaron=Object.values(p.cuotaPagos||{}).filter(x=>x.pagado).length;
+    cuotaHtml='<div class="partido-nota">💵 Cuota '+fmtMoney(p.cuotaMonto)+' c/u · '+pagaron+'/'+totalJugs+' pagaron ('+fmtMoney(pagaron*p.cuotaMonto)+' recaudado)</div>';
+  }
   return '<div class="partido-card'+(p.suspendido?' suspendido':'')+'" onclick="abrirModalPartido(\''+p.id+'\')">'+
     '<div class="partido-fecha"><span>🗓 '+fmtFecha(p.fecha)+formatoHtml+(p.suspendido?' · <span style="color:var(--red)">suspendido</span>':'')+'</span><span>'+
       '<button class="btn-share" onclick="compartirPartidoImagen(\''+p.id+'\',event)" title="Compartir como imagen">🖼️</button>'+
@@ -1082,6 +1093,7 @@ function renderPartidoCard(p) {
     '</div>'+
     (p.suspendido?'':'<div class="partido-goles-lista">'+golesHtml+'</div>')+
     figuraHtml+
+    cuotaHtml+
     (p.nota?'<div class="partido-nota">📝 '+esc(p.nota)+'</div>':'')+
   '</div>';
 }
@@ -1228,10 +1240,12 @@ function abrirModalPartido(id) {
   _golesEditar=p?(p.goles||[]).map(g=>({...g})):[];
   _suspendido=p?!!p.suspendido:false;
   _califEditar=p?{...(p.calificaciones||{})}:{};
+  _cuotaEditar=p?JSON.parse(JSON.stringify(p.cuotaPagos||{})):{};
   document.getElementById('p-g1').value=p?(p.g1||0):0;
   document.getElementById('p-g2').value=p?(p.g2||0):0;
   document.getElementById('p-nota').value=p?(p.nota||''):'';
   document.getElementById('p-formato').value=p?(p.formato||''):'';
+  document.getElementById('p-cuota-monto').value=p?(p.cuotaMonto||''):'';
   renderTorneoSelectPartido();
   document.getElementById('p-torneo').value=p?(p.torneoId||''):'';
   onCambioTorneoPartido();
@@ -1239,7 +1253,7 @@ function abrirModalPartido(id) {
     document.getElementById('p-torneo-eq1').value=p.torneoEq1Id||'';
     document.getElementById('p-torneo-eq2').value=p.torneoEq2Id||'';
   }
-  renderPillsEq(); renderGolesEditar(); renderSuspendidoToggle(); renderCalifEditar(); abrirModal('partido');
+  renderPillsEq(); renderGolesEditar(); renderSuspendidoToggle(); renderCalifEditar(); renderCuotaEditar(); abrirModal('partido');
 }
 
 function renderCalifEditar() {
@@ -1253,6 +1267,35 @@ function renderCalifEditar() {
       '<select class="input" style="flex:0 0 68px;padding:8px 6px" onchange="_califEditar[\''+j.id+'\']=this.value?parseInt(this.value):undefined">'+
       '<option value="">—</option>'+opts+'</select></div>';
   }).join('');
+}
+
+let _cuotaEditar={};
+
+function renderCuotaEditar() {
+  const allJugs=DB.jugadores.filter(j=>_eq1Sel.includes(j.id)||_eq2Sel.includes(j.id));
+  const c=document.getElementById('cuota-editar');
+  const monto=parseFloat(document.getElementById('p-cuota-monto').value)||0;
+  if(!allJugs.length){c.innerHTML='<div style="font-size:12px;color:var(--text3)">Seleccioná los jugadores primero</div>';return;}
+  if(!monto){c.innerHTML='';return;}
+  c.innerHTML=allJugs.map(j=>{
+    const p=_cuotaEditar[j.id]||{};
+    const pagado=!!p.pagado;
+    const metodo=p.metodo||'efectivo';
+    return '<div class="gol-row" style="flex-wrap:wrap">'+
+      '<div style="flex:1;font-size:13px;font-weight:600;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(j.nombre)+'</div>'+
+      '<button type="button" class="pill '+(pagado?'sel':'')+'" onclick="toggleCuotaPagado(\''+j.id+'\')">'+(pagado?'✅ Pagó':'⬜ No pagó')+'</button>'+
+      (pagado?'<select class="input" style="flex:0 0 130px;padding:8px 6px" onchange="_cuotaEditar[\''+j.id+'\'].metodo=this.value">'+
+        '<option value="efectivo" '+(metodo==='efectivo'?'selected':'')+'>Efectivo</option>'+
+        '<option value="transferencia" '+(metodo==='transferencia'?'selected':'')+'>Transferencia</option>'+
+      '</select>':'')+
+    '</div>';
+  }).join('');
+}
+
+function toggleCuotaPagado(jugId) {
+  if(_cuotaEditar[jugId]&&_cuotaEditar[jugId].pagado) delete _cuotaEditar[jugId];
+  else _cuotaEditar[jugId]={pagado:true,metodo:'efectivo'};
+  renderCuotaEditar();
 }
 
 function toggleSuspendido() { _suspendido=!_suspendido; renderSuspendidoToggle(); }
@@ -1279,6 +1322,7 @@ function toggleEq(jugId,eq) {
   else{if(_eq2Sel.includes(jugId))_eq2Sel=_eq2Sel.filter(x=>x!==jugId);else _eq2Sel.push(jugId);}
   renderPillsEq();
   renderCalifEditar();
+  renderCuotaEditar();
 }
 
 function updateGolesInput(){renderGolesEditar(true);}
@@ -1317,7 +1361,10 @@ function guardarPartido() {
   const torneoEq1Id=torneoId?(document.getElementById('p-torneo-eq1').value||undefined):undefined;
   const torneoEq2Id=torneoId?(document.getElementById('p-torneo-eq2').value||undefined):undefined;
   const formato=document.getElementById('p-formato').value||undefined;
-  const data={id:id||uid(),fecha,g1,g2,eq1:[..._eq1Sel],eq2:[..._eq2Sel],goles:_golesEditar.filter(g=>g.jugId),nota:nota||undefined,nombreEq1:nombreEq1||undefined,nombreEq2:nombreEq2||undefined,suspendido:_suspendido||undefined,calificaciones:Object.keys(calificaciones).length?calificaciones:undefined,torneoId,torneoEq1Id,torneoEq2Id,formato};
+  const cuotaMonto=parseFloat(document.getElementById('p-cuota-monto').value)||undefined;
+  const cuotaPagos={};
+  if(cuotaMonto) Object.keys(_cuotaEditar).forEach(jid=>{if(eqTodos.has(jid)&&_cuotaEditar[jid].pagado)cuotaPagos[jid]={...(_cuotaEditar[jid])};});
+  const data={id:id||uid(),fecha,g1,g2,eq1:[..._eq1Sel],eq2:[..._eq2Sel],goles:_golesEditar.filter(g=>g.jugId),nota:nota||undefined,nombreEq1:nombreEq1||undefined,nombreEq2:nombreEq2||undefined,suspendido:_suspendido||undefined,calificaciones:Object.keys(calificaciones).length?calificaciones:undefined,torneoId,torneoEq1Id,torneoEq2Id,formato,cuotaMonto,cuotaPagos:cuotaMonto&&Object.keys(cuotaPagos).length?cuotaPagos:undefined};
   if(!nota) delete data.nota;
   if(!nombreEq1) delete data.nombreEq1;
   if(!nombreEq2) delete data.nombreEq2;
@@ -1327,6 +1374,8 @@ function guardarPartido() {
   if(!data.formato) delete data.formato;
   if(!data.torneoEq1Id) delete data.torneoEq1Id;
   if(!data.torneoEq2Id) delete data.torneoEq2Id;
+  if(!data.cuotaMonto) delete data.cuotaMonto;
+  if(!data.cuotaPagos) delete data.cuotaPagos;
   if(id){const idx=DB.partidos.findIndex(p=>p.id===id);if(idx>=0)DB.partidos[idx]=data;}
   else DB.partidos.push(data);
   save(); cerrarModal('partido'); renderPartidos(); toast('✅ Partido guardado');
