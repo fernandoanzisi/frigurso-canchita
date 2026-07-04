@@ -298,7 +298,10 @@
 <div class="page" id="page-caja">
   <div class="header"><div class="header-title">💰 Caja</div></div>
   <div style="padding:14px">
-    <div class="section-title">Balance por jugador</div>
+    <div class="section-title">🏦 Pozo acumulado</div>
+    <div class="card" id="caja-pozo-total" style="text-align:center;padding:16px"></div>
+    <div id="caja-pozo-detalle"></div>
+    <div class="section-title" style="margin-top:14px">Balance por jugador</div>
     <div class="card" style="padding:0;overflow:hidden"><table class="stats-tabla" id="caja-balance"></table></div>
     <div id="caja-sugerencias"></div>
     <div class="section-title" style="margin-top:14px">Gastos</div>
@@ -422,6 +425,7 @@
     <div class="field-wrap">
       <div class="field-label">💵 Cuota del partido (opcional)</div>
       <input type="number" class="input" id="p-cuota-monto" placeholder="Monto por jugador, ej: 6000" min="0" style="margin-bottom:8px" oninput="renderCuotaEditar()">
+      <input type="number" class="input" id="p-costo-real" placeholder="Costo real de la cancha (opcional), ej: 54000" min="0" style="margin-bottom:8px">
       <div id="cuota-editar" class="goles-lista-editar"></div>
     </div>
     <div class="field-wrap"><div class="field-label">Nota (opcional)</div><input type="text" class="input" id="p-nota" placeholder="Ej: cancha de cemento, llovía..."></div>
@@ -1079,7 +1083,12 @@ function renderPartidoCard(p) {
   if(!p.suspendido&&p.cuotaMonto){
     const totalJugs=new Set([...(p.eq1||[]),...(p.eq2||[])]).size;
     const pagaron=Object.values(p.cuotaPagos||{}).filter(x=>x.pagado).length;
-    cuotaHtml='<div class="partido-nota">💵 Cuota '+fmtMoney(p.cuotaMonto)+' c/u · '+pagaron+'/'+totalJugs+' pagaron ('+fmtMoney(pagaron*p.cuotaMonto)+' recaudado)</div>';
+    const recaudado=pagaron*p.cuotaMonto;
+    cuotaHtml='<div class="partido-nota">💵 Cuota '+fmtMoney(p.cuotaMonto)+' c/u · '+pagaron+'/'+totalJugs+' pagaron ('+fmtMoney(recaudado)+' recaudado)</div>';
+    if(p.costoReal){
+      const sobrante=recaudado-p.costoReal;
+      cuotaHtml+='<div class="partido-nota">🏦 '+(sobrante>=0?'Sobrante para el pozo':'Faltante')+': '+fmtMoney(Math.abs(sobrante))+'</div>';
+    }
   }
   return '<div class="partido-card'+(p.suspendido?' suspendido':'')+'" onclick="abrirModalPartido(\''+p.id+'\')">'+
     '<div class="partido-fecha"><span>🗓 '+fmtFecha(p.fecha)+formatoHtml+(p.suspendido?' · <span style="color:var(--red)">suspendido</span>':'')+'</span><span>'+
@@ -1246,6 +1255,7 @@ function abrirModalPartido(id) {
   document.getElementById('p-nota').value=p?(p.nota||''):'';
   document.getElementById('p-formato').value=p?(p.formato||''):'';
   document.getElementById('p-cuota-monto').value=p?(p.cuotaMonto||''):'';
+  document.getElementById('p-costo-real').value=p?(p.costoReal||''):'';
   renderTorneoSelectPartido();
   document.getElementById('p-torneo').value=p?(p.torneoId||''):'';
   onCambioTorneoPartido();
@@ -1362,9 +1372,10 @@ function guardarPartido() {
   const torneoEq2Id=torneoId?(document.getElementById('p-torneo-eq2').value||undefined):undefined;
   const formato=document.getElementById('p-formato').value||undefined;
   const cuotaMonto=parseFloat(document.getElementById('p-cuota-monto').value)||undefined;
+  const costoReal=parseFloat(document.getElementById('p-costo-real').value)||undefined;
   const cuotaPagos={};
   if(cuotaMonto) Object.keys(_cuotaEditar).forEach(jid=>{if(eqTodos.has(jid)&&_cuotaEditar[jid].pagado)cuotaPagos[jid]={...(_cuotaEditar[jid])};});
-  const data={id:id||uid(),fecha,g1,g2,eq1:[..._eq1Sel],eq2:[..._eq2Sel],goles:_golesEditar.filter(g=>g.jugId),nota:nota||undefined,nombreEq1:nombreEq1||undefined,nombreEq2:nombreEq2||undefined,suspendido:_suspendido||undefined,calificaciones:Object.keys(calificaciones).length?calificaciones:undefined,torneoId,torneoEq1Id,torneoEq2Id,formato,cuotaMonto,cuotaPagos:cuotaMonto&&Object.keys(cuotaPagos).length?cuotaPagos:undefined};
+  const data={id:id||uid(),fecha,g1,g2,eq1:[..._eq1Sel],eq2:[..._eq2Sel],goles:_golesEditar.filter(g=>g.jugId),nota:nota||undefined,nombreEq1:nombreEq1||undefined,nombreEq2:nombreEq2||undefined,suspendido:_suspendido||undefined,calificaciones:Object.keys(calificaciones).length?calificaciones:undefined,torneoId,torneoEq1Id,torneoEq2Id,formato,cuotaMonto,cuotaPagos:cuotaMonto&&Object.keys(cuotaPagos).length?cuotaPagos:undefined,costoReal};
   if(!nota) delete data.nota;
   if(!nombreEq1) delete data.nombreEq1;
   if(!nombreEq2) delete data.nombreEq2;
@@ -1376,6 +1387,7 @@ function guardarPartido() {
   if(!data.torneoEq2Id) delete data.torneoEq2Id;
   if(!data.cuotaMonto) delete data.cuotaMonto;
   if(!data.cuotaPagos) delete data.cuotaPagos;
+  if(!data.costoReal) delete data.costoReal;
   if(id){const idx=DB.partidos.findIndex(p=>p.id===id);if(idx>=0)DB.partidos[idx]=data;}
   else DB.partidos.push(data);
   save(); cerrarModal('partido'); renderPartidos(); toast('✅ Partido guardado');
@@ -1898,6 +1910,13 @@ function onCambioTorneoEquipo(eqNum) {
 }
 
 // ─── CAJA ──────────────────────────────────────────────────────
+function computePozo() {
+  return DB.partidos.filter(p=>!p.suspendido&&p.cuotaMonto&&p.costoReal).map(p=>{
+    const pagaron=Object.values(p.cuotaPagos||{}).filter(x=>x.pagado).length;
+    return {fecha:p.fecha,sobrante:pagaron*p.cuotaMonto-p.costoReal};
+  });
+}
+
 function computeCaja() {
   const aportado={},deberia={};
   DB.jugadores.forEach(j=>{aportado[j.id]=0;deberia[j.id]=0;});
@@ -1933,6 +1952,22 @@ function computeSugerenciasPago() {
 }
 
 function renderCaja() {
+  const pozoPartidos=[...computePozo()].sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const pozoTotal=pozoPartidos.reduce((s,x)=>s+x.sobrante,0);
+  document.getElementById('caja-pozo-total').innerHTML=
+    '<div style="font-size:28px;font-weight:900;font-family:var(--mono);color:'+(pozoTotal>=0?'var(--accent)':'var(--red)')+'">'+fmtMoney(pozoTotal)+'</div>'+
+    '<div style="font-size:11px;color:var(--text3);margin-top:2px">Diferencia entre lo cobrado y el costo real de la cancha</div>';
+  document.getElementById('caja-pozo-detalle').innerHTML=pozoPartidos.length?(
+    '<div class="card" style="display:flex;flex-direction:column;gap:6px;margin-top:8px">'+
+    pozoPartidos.map(x=>
+      '<div style="display:flex;align-items:center;justify-content:space-between;font-size:12px">'+
+        '<span style="color:var(--text3)">'+fmtFecha(x.fecha)+'</span>'+
+        '<span style="font-family:var(--mono);font-weight:700;color:'+(x.sobrante>=0?'var(--accent)':'var(--red)')+'">'+(x.sobrante>=0?'+':'')+fmtMoney(x.sobrante)+'</span>'+
+      '</div>'
+    ).join('')+
+    '</div>'
+  ):'';
+
   const {aportado,deberia,saldo}=computeCaja();
   const jugTop=DB.jugadores.map(j=>({j,saldo:saldo[j.id]||0,aportado:aportado[j.id]||0,deberia:deberia[j.id]||0}))
     .sort((a,b)=>b.saldo-a.saldo);
