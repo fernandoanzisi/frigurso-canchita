@@ -378,6 +378,15 @@
     <div class="modal-title" id="modal-partido-title">Nuevo partido</div>
     <input type="hidden" id="p-id">
     <div class="field-wrap"><div class="field-label">Fecha</div><input type="date" class="input" id="p-fecha"></div>
+    <div class="field-wrap"><div class="field-label">Formato (opcional)</div>
+      <select class="input" id="p-formato">
+        <option value="">— Sin especificar —</option>
+        <option value="F5">Fútbol 5</option>
+        <option value="F7">Fútbol 7</option>
+        <option value="F9">Fútbol 9</option>
+        <option value="F11">Fútbol 11</option>
+      </select>
+    </div>
     <div class="field-wrap"><button type="button" class="pill" id="p-suspendido-toggle" onclick="toggleSuspendido()" style="width:100%;text-align:center">🚫 Marcar como suspendido</button></div>
     <div class="field-wrap">
       <div class="field-label">🏆 Torneo (opcional)</div>
@@ -434,6 +443,15 @@
     <div class="modal-title">🏆 Nuevo torneo</div>
     <input type="hidden" id="t-id">
     <div class="field-wrap"><div class="field-label">Nombre del torneo</div><input type="text" class="input" id="t-nombre" placeholder="Ej: Torneo Apertura 2026"></div>
+    <div class="field-wrap"><div class="field-label">Formato (opcional)</div>
+      <select class="input" id="t-formato">
+        <option value="">— Sin especificar —</option>
+        <option value="F5">Fútbol 5</option>
+        <option value="F7">Fútbol 7</option>
+        <option value="F9">Fútbol 9</option>
+        <option value="F11">Fútbol 11</option>
+      </select>
+    </div>
     <div class="field-wrap">
       <div class="field-label">Equipos</div>
       <div id="t-equipos-lista" style="display:flex;flex-direction:column;gap:6px"></div>
@@ -1045,8 +1063,9 @@ function renderPartidoCard(p) {
     Object.entries(p.calificaciones).forEach(([jid,val])=>{if(val>bestVal){bestVal=val;bestId=jid;}});
     if(bestId) figuraHtml='<div class="partido-nota">⭐ Figura del partido: '+esc(getNombre(bestId))+' ('+bestVal+')</div>';
   }
+  const formatoHtml=p.formato?' <span class="tag" style="background:rgba(96,165,250,.15);color:var(--blue)">'+p.formato+'</span>':'';
   return '<div class="partido-card'+(p.suspendido?' suspendido':'')+'" onclick="abrirModalPartido(\''+p.id+'\')">'+
-    '<div class="partido-fecha"><span>🗓 '+fmtFecha(p.fecha)+(p.suspendido?' · <span style="color:var(--red)">suspendido</span>':'')+'</span><span>'+
+    '<div class="partido-fecha"><span>🗓 '+fmtFecha(p.fecha)+formatoHtml+(p.suspendido?' · <span style="color:var(--red)">suspendido</span>':'')+'</span><span>'+
       '<button class="btn-share" onclick="compartirPartidoImagen(\''+p.id+'\',event)" title="Compartir como imagen">🖼️</button>'+
       '<button class="btn-share" onclick="compartirPartido(\''+p.id+'\',event)" title="Compartir como texto">↗️</button>'+
     '</span></div>'+
@@ -1067,7 +1086,7 @@ function renderPartidos() {
   let partidos=[...DB.partidos].sort((a,b)=>b.fecha.localeCompare(a.fecha));
   if(q) partidos=partidos.filter(p=>{
     const jugNombres=[...(p.eq1||[]),...(p.eq2||[])].map(getNombre).join(' ').toLowerCase();
-    const texto=[p.nombreEq1||'',p.nombreEq2||'',jugNombres,p.nota||'',fmtFecha(p.fecha)].join(' ').toLowerCase();
+    const texto=[p.nombreEq1||'',p.nombreEq2||'',jugNombres,p.nota||'',fmtFecha(p.fecha),p.formato||''].join(' ').toLowerCase();
     return texto.includes(q);
   });
   if(!DB.partidos.length){el.innerHTML='<div class="empty"><div class="empty-icon">⚽</div><div class="empty-text">Sin partidos</div><div class="empty-sub">Tocá + para cargar uno</div></div>';return;}
@@ -1206,6 +1225,7 @@ function abrirModalPartido(id) {
   document.getElementById('p-g1').value=p?(p.g1||0):0;
   document.getElementById('p-g2').value=p?(p.g2||0):0;
   document.getElementById('p-nota').value=p?(p.nota||''):'';
+  document.getElementById('p-formato').value=p?(p.formato||''):'';
   renderTorneoSelectPartido();
   document.getElementById('p-torneo').value=p?(p.torneoId||''):'';
   onCambioTorneoPartido();
@@ -1290,13 +1310,15 @@ function guardarPartido() {
   const torneoId=document.getElementById('p-torneo').value||undefined;
   const torneoEq1Id=torneoId?(document.getElementById('p-torneo-eq1').value||undefined):undefined;
   const torneoEq2Id=torneoId?(document.getElementById('p-torneo-eq2').value||undefined):undefined;
-  const data={id:id||uid(),fecha,g1,g2,eq1:[..._eq1Sel],eq2:[..._eq2Sel],goles:_golesEditar.filter(g=>g.jugId),nota:nota||undefined,nombreEq1:nombreEq1||undefined,nombreEq2:nombreEq2||undefined,suspendido:_suspendido||undefined,calificaciones:Object.keys(calificaciones).length?calificaciones:undefined,torneoId,torneoEq1Id,torneoEq2Id};
+  const formato=document.getElementById('p-formato').value||undefined;
+  const data={id:id||uid(),fecha,g1,g2,eq1:[..._eq1Sel],eq2:[..._eq2Sel],goles:_golesEditar.filter(g=>g.jugId),nota:nota||undefined,nombreEq1:nombreEq1||undefined,nombreEq2:nombreEq2||undefined,suspendido:_suspendido||undefined,calificaciones:Object.keys(calificaciones).length?calificaciones:undefined,torneoId,torneoEq1Id,torneoEq2Id,formato};
   if(!nota) delete data.nota;
   if(!nombreEq1) delete data.nombreEq1;
   if(!nombreEq2) delete data.nombreEq2;
   if(!data.suspendido) delete data.suspendido;
   if(!data.calificaciones) delete data.calificaciones;
   if(!data.torneoId) delete data.torneoId;
+  if(!data.formato) delete data.formato;
   if(!data.torneoEq1Id) delete data.torneoEq1Id;
   if(!data.torneoEq2Id) delete data.torneoEq2Id;
   if(id){const idx=DB.partidos.findIndex(p=>p.id===id);if(idx>=0)DB.partidos[idx]=data;}
@@ -1701,7 +1723,7 @@ function renderTorneoSelect() {
   const sel=document.getElementById('torneo-select');
   const actual=sel.value;
   sel.innerHTML='<option value="">— Elegí un torneo —</option>'+
-    DB.torneos.map(t=>'<option value="'+t.id+'" '+(t.id===actual?'selected':'')+'>'+esc(t.nombre)+'</option>').join('');
+    DB.torneos.map(t=>'<option value="'+t.id+'" '+(t.id===actual?'selected':'')+'>'+esc(t.nombre)+(t.formato?' ('+t.formato+')':'')+'</option>').join('');
 }
 
 function computeTabla(torneoId) {
@@ -1744,6 +1766,7 @@ function renderTablaPosiciones() {
 function abrirModalTorneo() {
   document.getElementById('t-id').value='';
   document.getElementById('t-nombre').value='';
+  document.getElementById('t-formato').value='';
   _torneoEquiposEditar=[{nombre:''},{nombre:''}];
   document.getElementById('btn-borrar-torneo').style.display='none';
   renderEquiposTorneoEditar();
@@ -1765,7 +1788,9 @@ function guardarTorneo() {
   const equipos=_torneoEquiposEditar.map(e=>e.nombre.trim()).filter(Boolean).map(nombre=>({id:uid(),nombre}));
   if(equipos.length<2){toast('⚠️ Cargá al menos 2 equipos');return;}
   const id=document.getElementById('t-id').value;
-  const data={id:id||uid(),nombre,equipos};
+  const formato=document.getElementById('t-formato').value||undefined;
+  const data={id:id||uid(),nombre,equipos,formato};
+  if(!data.formato) delete data.formato;
   if(id){const idx=DB.torneos.findIndex(t=>t.id===id);if(idx>=0){data.equipos=DB.torneos[idx].equipos;DB.torneos[idx]=data;}}
   else DB.torneos.push(data);
   save(); cerrarModal('torneo'); renderTorneoSelect(); renderTorneoSelectPartido(); toast('✅ Torneo guardado');
