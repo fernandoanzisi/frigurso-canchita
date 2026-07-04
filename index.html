@@ -58,6 +58,12 @@
   .vivo-badge-titulo{font-size:10px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:1px}
   .vivo-badge-score{font-size:18px;font-weight:900;color:var(--text);font-family:var(--mono)}
 
+  /* PENDIENTES */
+  .pendiente-card{margin:8px 14px 0;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:14px;padding:10px 14px;display:flex;align-items:center;gap:10px}
+  .pendiente-titulo{font-size:12px;font-weight:700;color:var(--gold)}
+  .pendiente-sub{font-size:11px;color:var(--text3)}
+  .pendiente-btn{width:34px;height:34px;border-radius:50%;background:var(--bg3);border:1px solid var(--border);color:var(--text2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
   /* JUGADORES */
   .search-wrap{padding:10px 14px 0;position:relative}
   .search-icon{position:absolute;left:26px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none;color:var(--text3)}
@@ -203,6 +209,7 @@
   </div>
   <div id="home-proximo"></div>
   <div id="home-vivo"></div>
+  <div id="home-pendientes"></div>
   <div class="kpi-grid" id="kpi-grid"></div>
   <div class="section">
     <div class="section-title">Último partido</div>
@@ -483,20 +490,40 @@ function computeStats() {
 
 function computeAsistencia(jugId) {
   const hoy=new Date().toISOString().slice(0,10);
-  const pasadas=DB.convocatorias.filter(c=>c.fecha<=hoy);
-  let asistio=0,avisoNo=0,noRespondio=0,confirmoNoFue=0;
+  const pasadas=DB.convocatorias.filter(c=>c.fecha<hoy);
+  let total=0,asistio=0,avisoNo=0,noRespondio=0,confirmoNoFue=0;
   pasadas.forEach(c=>{
+    const partido=DB.partidos.find(p=>p.fecha===c.fecha);
+    if(!partido||partido.suspendido) return; // sin resolver o suspendido: no cuenta para nadie
+    total++;
     const st=(c.confirmaciones||{})[jugId]||'';
     if(st==='no'){avisoNo++;return;}
     if(st==='si'){
-      const partido=DB.partidos.find(p=>p.fecha===c.fecha&&!p.suspendido);
-      const jugo=partido&&((partido.eq1||[]).includes(jugId)||(partido.eq2||[]).includes(jugId));
+      const jugo=(partido.eq1||[]).includes(jugId)||(partido.eq2||[]).includes(jugId);
       if(jugo) asistio++; else confirmoNoFue++;
       return;
     }
     noRespondio++;
   });
-  return {total:pasadas.length,asistio,avisoNo,noRespondio,confirmoNoFue};
+  return {total,asistio,avisoNo,noRespondio,confirmoNoFue};
+}
+
+function getConvocatoriasPendientes() {
+  const hoy=new Date().toISOString().slice(0,10);
+  return DB.convocatorias.filter(c=>c.fecha<hoy&&!DB.partidos.some(p=>p.fecha===c.fecha));
+}
+
+function resolverConvocatoria(convId,accion) {
+  const conv=DB.convocatorias.find(c=>c.id===convId);
+  if(!conv) return;
+  if(accion==='suspender') {
+    DB.partidos.push({id:uid(),fecha:conv.fecha,g1:0,g2:0,eq1:[],eq2:[],goles:[],suspendido:true,nota:conv.nota});
+    save(); renderHome(); toast('🚫 Marcado como suspendido');
+  } else {
+    navGo('partidos',document.getElementById('nav-partidos'));
+    abrirModalPartido();
+    document.getElementById('p-fecha').value=conv.fecha;
+  }
 }
 
 // ─── HOME ──────────────────────────────────────────────────────
@@ -543,6 +570,19 @@ function renderHome() {
   } else {
     vivoEl.innerHTML = '';
   }
+
+  // Convocatorias pendientes de resolver
+  const pendientes = getConvocatoriasPendientes();
+  document.getElementById('home-pendientes').innerHTML = pendientes.map(c=>
+    '<div class="pendiente-card">'+
+      '<div style="flex:1;min-width:0">'+
+        '<div class="pendiente-titulo">⚠️ Sin resolver: '+fmtFecha(c.fecha)+'</div>'+
+        '<div class="pendiente-sub">¿Jugaron? Cargá el resultado o marcalo suspendido</div>'+
+      '</div>'+
+      '<button class="pendiente-btn" onclick="resolverConvocatoria(\''+c.id+'\',\'cargar\')" title="Cargar partido">📝</button>'+
+      '<button class="pendiente-btn" onclick="resolverConvocatoria(\''+c.id+'\',\'suspender\')" title="Marcar suspendido">🚫</button>'+
+    '</div>'
+  ).join('');
 
   // KPIs
   document.getElementById('kpi-grid').innerHTML = [
