@@ -116,6 +116,8 @@
   .pill{padding:7px 14px;border-radius:99px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;transition:all .15s}
   .pill.sel{background:rgba(74,222,128,.15);border-color:var(--accent);color:var(--accent);font-weight:700}
   .pill:active{opacity:.75}
+  .pill.susp-on{background:rgba(248,113,113,.15);border-color:var(--red);color:var(--red);font-weight:700}
+  .partido-card.suspendido{opacity:.7}
   .goles-lista-editar{display:flex;flex-direction:column;gap:5px;margin-top:6px}
   .gol-row{display:flex;align-items:center;gap:8px}
   .gol-row select.input{flex:1;padding:8px 10px}
@@ -275,7 +277,10 @@
     <div class="modal-title" id="modal-partido-title">Nuevo partido</div>
     <input type="hidden" id="p-id">
     <div class="field-wrap"><div class="field-label">Fecha</div><input type="date" class="input" id="p-fecha"></div>
+    <div class="field-wrap"><button type="button" class="pill" id="p-suspendido-toggle" onclick="toggleSuspendido()" style="width:100%;text-align:center">🚫 Marcar como suspendido</button></div>
+    <div class="field-wrap"><div class="field-label">⚪ Nombre Equipo 1</div><input type="text" class="input" id="p-eq1-nombre" placeholder="Equipo 1"></div>
     <div class="field-wrap"><div class="field-label">⚪ Equipo 1 — jugadores</div><div class="pill-sel" id="p-eq1-pills"></div></div>
+    <div class="field-wrap"><div class="field-label">⚫ Nombre Equipo 2</div><input type="text" class="input" id="p-eq2-nombre" placeholder="Equipo 2"></div>
     <div class="field-wrap"><div class="field-label">⚫ Equipo 2 — jugadores</div><div class="pill-sel" id="p-eq2-pills"></div></div>
     <div style="display:grid;grid-template-columns:1fr 40px 1fr;gap:8px;align-items:center;margin-bottom:14px">
       <div><div class="field-label">Goles EQ1</div><input type="number" class="input" id="p-g1" value="0" min="0" max="99" oninput="updateGolesInput()"></div>
@@ -438,7 +443,7 @@ function toast(msg) {
 function computeStats() {
   const goles={}, jugados={}, wins={}, draws={}, losses={};
   DB.jugadores.forEach(j=>{goles[j.id]=0;jugados[j.id]=0;wins[j.id]=0;draws[j.id]=0;losses[j.id]=0;});
-  DB.partidos.forEach(p=>{
+  DB.partidos.filter(p=>!p.suspendido).forEach(p=>{
     const g1=p.g1||0, g2=p.g2||0;
     (p.eq1||[]).forEach(id=>{
       if(jugados[id]===undefined) return;
@@ -498,7 +503,7 @@ function renderHome() {
     ['⚽',totalGoles,'Goles totales'],
     ['🏃',DB.jugadores.length,'Jugadores'],
     ['🗓',DB.partidos.length,'Partidos'],
-    ['🏆',DB.partidos.filter(p=>(p.g1||0)!==(p.g2||0)).length,'Con ganador'],
+    ['🏆',DB.partidos.filter(p=>!p.suspendido&&(p.g1||0)!==(p.g2||0)).length,'Con ganador'],
   ].map(([icon,val,lbl])=>
     '<div class="kpi-box"><div class="kpi-val">'+icon+' '+val+'</div><div class="kpi-lbl">'+lbl+'</div></div>'
   ).join('');
@@ -596,7 +601,7 @@ function abrirPerfil(id) {
   ).join('');
 
   const partidos=DB.partidos
-    .filter(p=>(p.eq1||[]).includes(id)||(p.eq2||[]).includes(id))
+    .filter(p=>!p.suspendido&&((p.eq1||[]).includes(id)||(p.eq2||[]).includes(id)))
     .sort((a,b)=>b.fecha.localeCompare(a.fecha)).slice(0,10);
 
   document.getElementById('perfil-historial').innerHTML=partidos.length?partidos.map(p=>{
@@ -662,22 +667,27 @@ function borrarJugador() {
 
 // ─── PARTIDOS ──────────────────────────────────────────────────
 function renderPartidoCard(p) {
+  const eq1Nombre=p.nombreEq1||'Equipo 1';
+  const eq2Nombre=p.nombreEq2||'Equipo 2';
   const eq1Names=(p.eq1||[]).map(getNombre).join(', ')||'—';
   const eq2Names=(p.eq2||[]).map(getNombre).join(', ')||'—';
-  const golesHtml=(p.goles||[]).length
-    ?(p.goles||[]).map(g=>'<span class="gol-chip">⚽ '+esc(getNombre(g.jugId))+'</span>').join('')
-    :'<span style="font-size:11px;color:var(--text3)">Sin goleadores registrados</span>';
   const g1=p.g1||0,g2=p.g2||0;
   const col1=g1>g2?'var(--accent)':g1<g2?'var(--red)':'var(--text)';
   const col2=g2>g1?'var(--accent)':g2<g1?'var(--red)':'var(--text)';
-  return '<div class="partido-card" onclick="abrirModalPartido(\''+p.id+'\')">'+
-    '<div class="partido-fecha"><span>🗓 '+fmtFecha(p.fecha)+'</span><button class="btn-share" onclick="compartirPartido(\''+p.id+'\',event)">↗️</button></div>'+
+  const marcadorHtml=p.suspendido
+    ?'<span class="tag" style="background:rgba(248,113,113,.15);color:var(--red)">SUSPENDIDO</span>'
+    :'<span style="color:'+col1+'">'+g1+'</span> - <span style="color:'+col2+'">'+g2+'</span>';
+  const golesHtml=(p.goles||[]).length
+    ?(p.goles||[]).map(g=>'<span class="gol-chip">⚽ '+esc(getNombre(g.jugId))+'</span>').join('')
+    :'<span style="font-size:11px;color:var(--text3)">Sin goleadores registrados</span>';
+  return '<div class="partido-card'+(p.suspendido?' suspendido':'')+'" onclick="abrirModalPartido(\''+p.id+'\')">'+
+    '<div class="partido-fecha"><span>🗓 '+fmtFecha(p.fecha)+(p.suspendido?' · <span style="color:var(--red)">suspendido</span>':'')+'</span><button class="btn-share" onclick="compartirPartido(\''+p.id+'\',event)">↗️</button></div>'+
     '<div class="partido-resultado">'+
-      '<div class="partido-equipo"><div class="partido-eq-nombre">⚪ Equipo 1</div><div class="partido-eq-nombres">'+esc(eq1Names)+'</div></div>'+
-      '<div class="partido-marcador"><span style="color:'+col1+'">'+g1+'</span> - <span style="color:'+col2+'">'+g2+'</span></div>'+
-      '<div class="partido-equipo partido-eq2"><div class="partido-eq-nombre">Equipo 2 ⚫</div><div class="partido-eq-nombres">'+esc(eq2Names)+'</div></div>'+
+      '<div class="partido-equipo"><div class="partido-eq-nombre">⚪ '+esc(eq1Nombre)+'</div><div class="partido-eq-nombres">'+esc(eq1Names)+'</div></div>'+
+      '<div class="partido-marcador">'+marcadorHtml+'</div>'+
+      '<div class="partido-equipo partido-eq2"><div class="partido-eq-nombre">'+esc(eq2Nombre)+' ⚫</div><div class="partido-eq-nombres">'+esc(eq2Names)+'</div></div>'+
     '</div>'+
-    '<div class="partido-goles-lista">'+golesHtml+'</div>'+
+    (p.suspendido?'':'<div class="partido-goles-lista">'+golesHtml+'</div>')+
     (p.nota?'<div class="partido-nota">📝 '+esc(p.nota)+'</div>':'')+
   '</div>';
 }
@@ -692,15 +702,18 @@ function renderPartidos() {
 function compartirPartido(id,e) {
   e.stopPropagation();
   const p=DB.partidos.find(x=>x.id===id); if(!p) return;
+  const eq1Nombre=p.nombreEq1||'Equipo 1', eq2Nombre=p.nombreEq2||'Equipo 2';
   const eq1=(p.eq1||[]).map(getNombre).join(', ')||'—';
   const eq2=(p.eq2||[]).map(getNombre).join(', ')||'—';
   const goleadores=(p.goles||[]).map(g=>getNombre(g.jugId)).join(', ');
-  const texto='⚽ Frigurso Canchita — '+fmtFecha(p.fecha)+'\n⚪ Equipo 1 ('+eq1+'): '+(p.g1||0)+'\n⚫ Equipo 2 ('+eq2+'): '+(p.g2||0)+(goleadores?'\n⚽ Goles: '+goleadores:'')+(p.nota?'\n📝 '+p.nota:'');
+  const texto=p.suspendido
+    ?'⚽ Frigurso Canchita — '+fmtFecha(p.fecha)+'\n🚫 Partido suspendido'+(p.nota?'\n📝 '+p.nota:'')
+    :'⚽ Frigurso Canchita — '+fmtFecha(p.fecha)+'\n⚪ '+eq1Nombre+' ('+eq1+'): '+(p.g1||0)+'\n⚫ '+eq2Nombre+' ('+eq2+'): '+(p.g2||0)+(goleadores?'\n⚽ Goles: '+goleadores:'')+(p.nota?'\n📝 '+p.nota:'');
   if(navigator.share) navigator.share({title:'Frigurso Canchita',text:texto}).catch(()=>{});
   else navigator.clipboard.writeText(texto).then(()=>toast('📋 Copiado')).catch(()=>toast('No se pudo copiar'));
 }
 
-let _eq1Sel=[],_eq2Sel=[],_golesEditar=[];
+let _eq1Sel=[],_eq2Sel=[],_golesEditar=[],_suspendido=false;
 
 function abrirModalPartido(id) {
   const p=id?DB.partidos.find(x=>x.id===id):null;
@@ -708,13 +721,24 @@ function abrirModalPartido(id) {
   document.getElementById('p-fecha').value=p?p.fecha:new Date().toISOString().slice(0,10);
   document.getElementById('modal-partido-title').textContent=p?'Editar partido':'Nuevo partido';
   document.getElementById('btn-borrar-partido').style.display=p?'':'none';
+  document.getElementById('p-eq1-nombre').value=p?(p.nombreEq1||''):'';
+  document.getElementById('p-eq2-nombre').value=p?(p.nombreEq2||''):'';
   _eq1Sel=p?[...(p.eq1||[])]:[];
   _eq2Sel=p?[...(p.eq2||[])]:[];
   _golesEditar=p?(p.goles||[]).map(g=>({...g})):[];
+  _suspendido=p?!!p.suspendido:false;
   document.getElementById('p-g1').value=p?(p.g1||0):0;
   document.getElementById('p-g2').value=p?(p.g2||0):0;
   document.getElementById('p-nota').value=p?(p.nota||''):'';
-  renderPillsEq(); renderGolesEditar(); abrirModal('partido');
+  renderPillsEq(); renderGolesEditar(); renderSuspendidoToggle(); abrirModal('partido');
+}
+
+function toggleSuspendido() { _suspendido=!_suspendido; renderSuspendidoToggle(); }
+
+function renderSuspendidoToggle() {
+  const btn=document.getElementById('p-suspendido-toggle');
+  btn.textContent=_suspendido?'🚫 Partido suspendido':'🚫 Marcar como suspendido';
+  btn.classList.toggle('susp-on',_suspendido);
 }
 
 function renderPillsEq() {
@@ -761,8 +785,13 @@ function guardarPartido() {
   const g2=parseInt(document.getElementById('p-g2').value)||0;
   const nota=document.getElementById('p-nota').value.trim();
   const id=document.getElementById('p-id').value;
-  const data={id:id||uid(),fecha,g1,g2,eq1:[..._eq1Sel],eq2:[..._eq2Sel],goles:_golesEditar.filter(g=>g.jugId),nota:nota||undefined};
+  const nombreEq1=document.getElementById('p-eq1-nombre').value.trim();
+  const nombreEq2=document.getElementById('p-eq2-nombre').value.trim();
+  const data={id:id||uid(),fecha,g1,g2,eq1:[..._eq1Sel],eq2:[..._eq2Sel],goles:_golesEditar.filter(g=>g.jugId),nota:nota||undefined,nombreEq1:nombreEq1||undefined,nombreEq2:nombreEq2||undefined,suspendido:_suspendido||undefined};
   if(!nota) delete data.nota;
+  if(!nombreEq1) delete data.nombreEq1;
+  if(!nombreEq2) delete data.nombreEq2;
+  if(!data.suspendido) delete data.suspendido;
   if(id){const idx=DB.partidos.findIndex(p=>p.id===id);if(idx>=0)DB.partidos[idx]=data;}
   else DB.partidos.push(data);
   save(); cerrarModal('partido'); renderPartidos(); toast('✅ Partido guardado');
