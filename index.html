@@ -300,6 +300,7 @@
   <div style="padding:14px">
     <div class="section-title">Balance por jugador</div>
     <div class="card" style="padding:0;overflow:hidden"><table class="stats-tabla" id="caja-balance"></table></div>
+    <div id="caja-sugerencias"></div>
     <div class="section-title" style="margin-top:14px">Gastos</div>
     <div id="caja-lista"></div>
   </div>
@@ -326,6 +327,7 @@
       <span class="admin-menu-arrow">›</span>
     </button>
     <div class="sep"></div>
+    <div id="admin-backup-status" style="font-size:11px;text-align:center;margin-bottom:2px"></div>
     <button class="admin-menu-btn" onclick="exportarDatos()">
       <span class="admin-menu-icon">📦</span>
       <span class="admin-menu-txt"><span class="admin-menu-titulo">Exportar backup</span><span class="admin-menu-sub">Descargar todos los datos en JSON</span></span>
@@ -581,6 +583,7 @@ function navGo(page, btn) {
   if (page==='partidos')  { renderPartidos();  document.getElementById('fab-partidos').style.display=''; }
   if (page==='stats') renderStats();
   if (page==='caja') { renderCaja(); document.getElementById('fab-caja').style.display=''; }
+  if (page==='admin') renderAdmin();
   window.scrollTo(0,0);
   if (!_poppingState && page!=='home') history.pushState({page},'','');
 }
@@ -1863,6 +1866,23 @@ function computeCaja() {
 
 function fmtMoney(n) { return '$'+Math.round(n).toLocaleString('es-AR'); }
 
+function computeSugerenciasPago() {
+  const {saldo}=computeCaja();
+  const acreedores=DB.jugadores.filter(j=>(saldo[j.id]||0)>0.5).map(j=>({j,monto:saldo[j.id]})).sort((a,b)=>b.monto-a.monto);
+  const deudores=DB.jugadores.filter(j=>(saldo[j.id]||0)<-0.5).map(j=>({j,monto:-saldo[j.id]})).sort((a,b)=>b.monto-a.monto);
+  const pagos=[];
+  let i=0,k=0;
+  while(i<deudores.length&&k<acreedores.length){
+    const d=deudores[i],a=acreedores[k];
+    const monto=Math.min(d.monto,a.monto);
+    if(monto>0.5) pagos.push({de:d.j,a:a.j,monto});
+    d.monto-=monto; a.monto-=monto;
+    if(d.monto<=0.5) i++;
+    if(a.monto<=0.5) k++;
+  }
+  return pagos;
+}
+
 function renderCaja() {
   const {aportado,deberia,saldo}=computeCaja();
   const jugTop=DB.jugadores.map(j=>({j,saldo:saldo[j.id]||0,aportado:aportado[j.id]||0,deberia:deberia[j.id]||0}))
@@ -1876,6 +1896,20 @@ function renderCaja() {
         '<td style="text-align:right;font-family:var(--mono);color:var(--text3)">'+fmtMoney(x.deberia)+'</td>'+
         '<td style="text-align:right;font-family:var(--mono);font-weight:800;color:'+col+'">'+fmtMoney(x.saldo)+'</td></tr>';
     }).join(''):'<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text3)">Sin datos</td></tr>');
+
+  const pagos=computeSugerenciasPago();
+  const sugEl=document.getElementById('caja-sugerencias');
+  sugEl.innerHTML=pagos.length?(
+    '<div class="section-title" style="margin-top:14px">💸 Para saldar cuentas</div>'+
+    '<div class="card" style="display:flex;flex-direction:column;gap:8px">'+
+    pagos.map(p=>
+      '<div style="display:flex;align-items:center;justify-content:space-between;font-size:13px">'+
+        '<span><b style="color:var(--text)">'+esc(p.de.nombre)+'</b> <span style="color:var(--text3)">le paga a</span> <b style="color:var(--text)">'+esc(p.a.nombre)+'</b></span>'+
+        '<span style="font-family:var(--mono);font-weight:800;color:var(--gold)">'+fmtMoney(p.monto)+'</span>'+
+      '</div>'
+    ).join('')+
+    '</div>'
+  ) : '';
 
   const el=document.getElementById('caja-lista');
   const gastos=[...(DB.gastos||[])].sort((a,b)=>b.fecha.localeCompare(a.fecha));
@@ -2009,7 +2043,23 @@ function exportarDatos() {
   const a=document.createElement('a'); a.href=url;
   a.download='canchita-backup-'+new Date().toISOString().slice(0,10)+'.json';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url); toast('📦 Backup descargado');
+  URL.revokeObjectURL(url);
+  DB.ultimoBackup=Date.now(); save();
+  renderAdmin();
+  toast('📦 Backup descargado');
+}
+
+function renderAdmin() {
+  const el=document.getElementById('admin-backup-status');
+  if(!el) return;
+  if(!DB.ultimoBackup){
+    el.innerHTML='<span style="color:var(--gold)">⚠️ Todavía no exportaste ningún backup</span>';
+    return;
+  }
+  const dias=Math.floor((Date.now()-DB.ultimoBackup)/86400000);
+  el.innerHTML=dias>=14
+    ? '<span style="color:var(--gold)">⚠️ Hace '+dias+' días que no exportás un backup</span>'
+    : '<span style="color:var(--text3)">Último backup: hace '+(dias===0?'menos de un día':dias+' día'+(dias===1?'':'s'))+'</span>';
 }
 
 function importarDatos(e) {
@@ -2020,7 +2070,7 @@ function importarDatos(e) {
       const d=JSON.parse(ev.target.result);
       if(!d.jugadores||!d.partidos) throw new Error();
       if(!confirm('¿Reemplazar todos los datos con el backup? No se puede deshacer.')){e.target.value='';return;}
-      DB=d; save(); renderHome(); toast('✅ Datos importados');
+      DB=d; save(); renderHome(); renderAdmin(); toast('✅ Datos importados');
     } catch(_){toast('❌ Archivo inválido');e.target.value='';}
   };
   reader.readAsText(file);
