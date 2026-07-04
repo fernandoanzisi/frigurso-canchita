@@ -195,6 +195,7 @@
   <button class="nav-btn" id="nav-jugadores" onclick="navGo('jugadores',this)"><span class="ni">👥</span><span>Jugadores</span></button>
   <button class="nav-btn" id="nav-partidos" onclick="navGo('partidos',this)"><span class="ni">⚽</span><span>Partidos</span></button>
   <button class="nav-btn" id="nav-stats" onclick="navGo('stats',this)"><span class="ni">📊</span><span>Stats</span></button>
+  <button class="nav-btn" id="nav-caja" onclick="navGo('caja',this)"><span class="ni">💰</span><span>Caja</span></button>
 </nav>
 
 <!-- HOME -->
@@ -239,6 +240,10 @@
     <button class="btn-icon" onclick="abrirSorteo()" title="Sorteo de equipos">🔀</button>
     <button class="btn-icon" onclick="abrirVivo()" title="Partido en vivo" id="btn-vivo-hdr">🔴</button>
   </div>
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="search" class="search-input" id="partido-search" placeholder="Buscar por jugador, equipo o nota..." oninput="renderPartidos()">
+  </div>
   <div style="padding:14px" id="partidos-lista"></div>
 </div>
 <button class="fab" id="fab-partidos" style="display:none" onclick="abrirModalPartido()">＋</button>
@@ -257,8 +262,27 @@
     <div class="card" style="padding:0;overflow:hidden"><table class="stats-tabla" id="stats-goles"></table></div>
     <div class="section-title" style="margin-top:14px">Rendimiento</div>
     <div class="card" style="padding:0;overflow:hidden"><table class="stats-tabla" id="stats-partidos"></table></div>
+    <div id="stats-rachas-wrap"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;margin-bottom:10px">
+      <div class="section-title" style="margin-bottom:0">🏆 Torneo</div>
+      <button class="btn-icon" style="font-size:14px" onclick="abrirModalTorneo()" title="Nuevo torneo">＋</button>
+    </div>
+    <select class="input" id="torneo-select" onchange="renderTablaPosiciones()" style="margin-bottom:10px"></select>
+    <div class="card" style="padding:0;overflow:hidden"><table class="stats-tabla" id="tabla-posiciones"></table></div>
   </div>
 </div>
+
+<!-- CAJA -->
+<div class="page" id="page-caja">
+  <div class="header"><div class="header-title">💰 Caja</div></div>
+  <div style="padding:14px">
+    <div class="section-title">Balance por jugador</div>
+    <div class="card" style="padding:0;overflow:hidden"><table class="stats-tabla" id="caja-balance"></table></div>
+    <div class="section-title" style="margin-top:14px">Gastos</div>
+    <div id="caja-lista"></div>
+  </div>
+</div>
+<button class="fab" id="fab-caja" style="display:none" onclick="abrirModalGasto()">＋</button>
 
 <!-- MODAL JUGADOR -->
 <div class="modal-overlay" id="modal-jugador" onclick="if(event.target===this)cerrarModal('jugador')">
@@ -288,6 +312,14 @@
     <input type="hidden" id="p-id">
     <div class="field-wrap"><div class="field-label">Fecha</div><input type="date" class="input" id="p-fecha"></div>
     <div class="field-wrap"><button type="button" class="pill" id="p-suspendido-toggle" onclick="toggleSuspendido()" style="width:100%;text-align:center">🚫 Marcar como suspendido</button></div>
+    <div class="field-wrap">
+      <div class="field-label">🏆 Torneo (opcional)</div>
+      <select class="input" id="p-torneo" onchange="onCambioTorneoPartido()"><option value="">— Ninguno (amistoso) —</option></select>
+    </div>
+    <div id="p-torneo-equipos" style="display:none">
+      <div class="field-wrap"><div class="field-label">Equipo 1 del torneo</div><select class="input" id="p-torneo-eq1" onchange="onCambioTorneoEquipo(1)"></select></div>
+      <div class="field-wrap"><div class="field-label">Equipo 2 del torneo</div><select class="input" id="p-torneo-eq2" onchange="onCambioTorneoEquipo(2)"></select></div>
+    </div>
     <div class="field-wrap"><div class="field-label">⚪ Nombre Equipo 1</div><input type="text" class="input" id="p-eq1-nombre" placeholder="Equipo 1"></div>
     <div class="field-wrap"><div class="field-label">⚪ Equipo 1 — jugadores</div><div class="pill-sel" id="p-eq1-pills"></div></div>
     <div class="field-wrap"><div class="field-label">⚫ Nombre Equipo 2</div><input type="text" class="input" id="p-eq2-nombre" placeholder="Equipo 2"></div>
@@ -320,8 +352,51 @@
     <button class="btn-primary" onclick="exportarDatos()">📦 Exportar backup (JSON)</button>
     <label class="label-btn">📥 Importar backup<input type="file" accept=".json" style="display:none" onchange="importarDatos(event)"></label>
     <div class="sep"></div>
+    <button class="btn-ghost" onclick="abrirPapelera()">🗑 Ver papelera</button>
     <button class="btn-ghost" onclick="forzarUpdate()">🔄 Forzar actualización de app</button>
     <button class="btn-ghost" onclick="cerrarModal('opciones')">Cerrar</button>
+  </div>
+</div>
+
+<!-- MODAL GASTO -->
+<div class="modal-overlay" id="modal-gasto" onclick="if(event.target===this)cerrarModal('gasto')">
+  <div class="modal">
+    <div class="modal-title" id="modal-gasto-title">Nuevo gasto</div>
+    <input type="hidden" id="g-id">
+    <div class="field-wrap"><div class="field-label">Fecha</div><input type="date" class="input" id="g-fecha"></div>
+    <div class="field-wrap"><div class="field-label">Concepto</div><input type="text" class="input" id="g-concepto" placeholder="Ej: Cancha, pelotas, agua..."></div>
+    <div class="field-wrap"><div class="field-label">Monto total</div><input type="number" class="input" id="g-monto" placeholder="0" min="0" step="0.01"></div>
+    <div class="field-wrap"><div class="field-label">Pagado por</div><select class="input" id="g-pagador"></select></div>
+    <div class="field-wrap"><div class="field-label">Se reparte entre</div><div class="pill-sel" id="g-participantes"></div></div>
+    <button class="btn-primary" onclick="guardarGasto()">Guardar gasto</button>
+    <button class="btn-danger" id="btn-borrar-gasto" onclick="borrarGasto()" style="display:none">🗑 Borrar gasto</button>
+    <button class="btn-ghost" onclick="cerrarModal('gasto')">Cancelar</button>
+  </div>
+</div>
+
+<!-- MODAL TORNEO -->
+<div class="modal-overlay" id="modal-torneo" onclick="if(event.target===this)cerrarModal('torneo')">
+  <div class="modal">
+    <div class="modal-title">🏆 Nuevo torneo</div>
+    <input type="hidden" id="t-id">
+    <div class="field-wrap"><div class="field-label">Nombre del torneo</div><input type="text" class="input" id="t-nombre" placeholder="Ej: Torneo Apertura 2026"></div>
+    <div class="field-wrap">
+      <div class="field-label">Equipos</div>
+      <div id="t-equipos-lista" style="display:flex;flex-direction:column;gap:6px"></div>
+      <button onclick="agregarEquipoTorneoInput()" style="margin-top:8px;padding:7px 14px;border-radius:8px;background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.25);color:var(--accent);font-size:12px;font-weight:700">+ Agregar equipo</button>
+    </div>
+    <button class="btn-primary" onclick="guardarTorneo()">Guardar torneo</button>
+    <button class="btn-danger" id="btn-borrar-torneo" onclick="borrarTorneo()" style="display:none">🗑 Borrar torneo</button>
+    <button class="btn-ghost" onclick="cerrarModal('torneo')">Cancelar</button>
+  </div>
+</div>
+
+<!-- MODAL PAPELERA -->
+<div class="modal-overlay" id="modal-papelera" onclick="if(event.target===this)cerrarModal('papelera')">
+  <div class="modal">
+    <div class="modal-title">🗑 Papelera de jugadores</div>
+    <div id="papelera-lista"></div>
+    <button class="btn-ghost" onclick="cerrarModal('papelera')">Cerrar</button>
   </div>
 </div>
 
@@ -391,13 +466,13 @@
 <script>
 // ─── STORAGE ───────────────────────────────────────────────────
 const KEY = 'canchita_v1';
-let DB = { jugadores:[], partidos:[], convocatorias:[], proximoConvocatoriaId:null, vivo:null };
+let DB = { jugadores:[], partidos:[], convocatorias:[], proximoConvocatoriaId:null, vivo:null, papelera:[], gastos:[], torneos:[] };
 
 function save() { try { localStorage.setItem(KEY,JSON.stringify(DB)); } catch(e){} }
 function load() {
   try {
     const d = JSON.parse(localStorage.getItem(KEY)||'null');
-    if (d&&d.jugadores) DB = {...{convocatorias:[],proximoConvocatoriaId:null,vivo:null},...d};
+    if (d&&d.jugadores) DB = {...{convocatorias:[],proximoConvocatoriaId:null,vivo:null,papelera:[],gastos:[],torneos:[]},...d};
     if (DB.proximoPartido && !DB.convocatorias.length) {
       const legacy = DB.proximoPartido;
       const conv = {id:uid(), fecha:legacy.fecha, hora:legacy.hora, nota:legacy.nota, confirmaciones:legacy.confirmaciones||{}};
@@ -423,6 +498,7 @@ function navGo(page, btn) {
   if (page==='jugadores') { renderJugadores(); document.getElementById('fab-jugadores').style.display=''; }
   if (page==='partidos')  { renderPartidos();  document.getElementById('fab-partidos').style.display=''; }
   if (page==='stats') renderStats();
+  if (page==='caja') { renderCaja(); document.getElementById('fab-caja').style.display=''; }
   window.scrollTo(0,0);
   if (!_poppingState && page!=='home') history.pushState({page},'','');
 }
@@ -450,7 +526,7 @@ window.addEventListener('popstate', e => {
 function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function iniciales(n) { return n.trim().split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase()||'?'; }
-function getNombre(id) { const j=DB.jugadores.find(j=>j.id===id); return j?j.nombre:'?'; }
+function getNombre(id) { const j=DB.jugadores.find(j=>j.id===id)||(DB.papelera||[]).find(j=>j.id===id); return j?j.nombre:'?'; }
 function fmtFecha(s) { if(!s) return ''; const [y,m,d]=s.split('-'); return d+'/'+m+'/'+y; }
 function fmtMes(s) {
   if(!s) return '';
@@ -775,15 +851,55 @@ function guardarJugador() {
 function borrarJugador() {
   const id=document.getElementById('j-id').value;
   const j=DB.jugadores.find(x=>x.id===id);
-  if(!j||!confirm('¿Borrar a '+j.nombre+'?')) return;
+  if(!j||!confirm('¿Borrar a '+j.nombre+'? Se puede restaurar después desde la papelera.')) return;
   DB.jugadores=DB.jugadores.filter(x=>x.id!==id);
+  if(!DB.papelera) DB.papelera=[];
+  DB.papelera.push({...j,_borradoEn:Date.now()});
+  save(); cerrarModal('jugador'); renderJugadores();
+  toast('🗑 '+j.nombre+' movido a la papelera');
+}
+
+function abrirPapelera() { renderPapelera(); abrirModal('papelera'); }
+
+function renderPapelera() {
+  const el=document.getElementById('papelera-lista');
+  const lista=DB.papelera||[];
+  el.innerHTML=lista.length?lista.map(j=>
+    '<div class="jugador-row" style="cursor:default">'+
+      '<div class="jugador-avatar">'+iniciales(j.nombre)+'</div>'+
+      '<div style="flex:1"><div class="jugador-nombre">'+esc(j.nombre)+'</div>'+
+      '<div class="jugador-pos">'+(j.posicion||'Sin posición')+'</div></div>'+
+      '<button class="btn-icon" style="font-size:14px" title="Restaurar" onclick="restaurarJugador(\''+j.id+'\')">♻️</button>'+
+      '<button class="btn-icon" style="font-size:14px;margin-left:6px" title="Eliminar para siempre" onclick="borrarJugadorDefinitivo(\''+j.id+'\')">🗑</button>'+
+    '</div>'
+  ).join('') : '<div style="text-align:center;padding:20px;color:var(--text3)">La papelera está vacía</div>';
+}
+
+function restaurarJugador(id) {
+  const idx=(DB.papelera||[]).findIndex(x=>x.id===id);
+  if(idx<0) return;
+  const [j]=DB.papelera.splice(idx,1);
+  delete j._borradoEn;
+  DB.jugadores.push(j);
+  save(); renderPapelera(); renderJugadores();
+  toast('♻️ '+j.nombre+' restaurado');
+}
+
+function borrarJugadorDefinitivo(id) {
+  const idx=(DB.papelera||[]).findIndex(x=>x.id===id);
+  if(idx<0) return;
+  const j=DB.papelera[idx];
+  if(!confirm('¿Eliminar a '+j.nombre+' para siempre? Va a desaparecer del historial de partidos.')) return;
+  DB.papelera.splice(idx,1);
   DB.partidos.forEach(p=>{
     p.eq1=(p.eq1||[]).filter(x=>x!==id);
     p.eq2=(p.eq2||[]).filter(x=>x!==id);
     p.goles=(p.goles||[]).filter(g=>g.jugId!==id);
+    if(p.calificaciones) delete p.calificaciones[id];
   });
-  save(); cerrarModal('jugador'); renderJugadores();
-  toast('🗑 '+j.nombre+' eliminado');
+  DB.convocatorias.forEach(c=>{ if(c.confirmaciones) delete c.confirmaciones[id]; });
+  save(); renderPapelera();
+  toast('🗑 Eliminado definitivamente');
 }
 
 // ─── PARTIDOS ──────────────────────────────────────────────────
@@ -808,7 +924,10 @@ function renderPartidoCard(p) {
     if(bestId) figuraHtml='<div class="partido-nota">⭐ Figura del partido: '+esc(getNombre(bestId))+' ('+bestVal+')</div>';
   }
   return '<div class="partido-card'+(p.suspendido?' suspendido':'')+'" onclick="abrirModalPartido(\''+p.id+'\')">'+
-    '<div class="partido-fecha"><span>🗓 '+fmtFecha(p.fecha)+(p.suspendido?' · <span style="color:var(--red)">suspendido</span>':'')+'</span><button class="btn-share" onclick="compartirPartido(\''+p.id+'\',event)">↗️</button></div>'+
+    '<div class="partido-fecha"><span>🗓 '+fmtFecha(p.fecha)+(p.suspendido?' · <span style="color:var(--red)">suspendido</span>':'')+'</span><span>'+
+      '<button class="btn-share" onclick="compartirPartidoImagen(\''+p.id+'\',event)" title="Compartir como imagen">🖼️</button>'+
+      '<button class="btn-share" onclick="compartirPartido(\''+p.id+'\',event)" title="Compartir como texto">↗️</button>'+
+    '</span></div>'+
     '<div class="partido-resultado">'+
       '<div class="partido-equipo"><div class="partido-eq-nombre">⚪ '+esc(eq1Nombre)+'</div><div class="partido-eq-nombres">'+esc(eq1Names)+'</div></div>'+
       '<div class="partido-marcador">'+marcadorHtml+'</div>'+
@@ -822,9 +941,16 @@ function renderPartidoCard(p) {
 
 function renderPartidos() {
   const el=document.getElementById('partidos-lista');
-  const partidos=[...DB.partidos].sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const q=(document.getElementById('partido-search')?.value||'').toLowerCase().trim();
+  let partidos=[...DB.partidos].sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  if(q) partidos=partidos.filter(p=>{
+    const jugNombres=[...(p.eq1||[]),...(p.eq2||[])].map(getNombre).join(' ').toLowerCase();
+    const texto=[p.nombreEq1||'',p.nombreEq2||'',jugNombres,p.nota||'',fmtFecha(p.fecha)].join(' ').toLowerCase();
+    return texto.includes(q);
+  });
+  if(!DB.partidos.length){el.innerHTML='<div class="empty"><div class="empty-icon">⚽</div><div class="empty-text">Sin partidos</div><div class="empty-sub">Tocá + para cargar uno</div></div>';return;}
   el.innerHTML=partidos.length?partidos.map(p=>renderPartidoCard(p)).join('')
-    :'<div class="empty"><div class="empty-icon">⚽</div><div class="empty-text">Sin partidos</div><div class="empty-sub">Tocá + para cargar uno</div></div>';
+    :'<div style="text-align:center;padding:30px;color:var(--text3)">Sin resultados</div>';
 }
 
 function compartirPartido(id,e) {
@@ -839,6 +965,105 @@ function compartirPartido(id,e) {
     :'⚽ Frigurso Canchita — '+fmtFecha(p.fecha)+'\n⚪ '+eq1Nombre+' ('+eq1+'): '+(p.g1||0)+'\n⚫ '+eq2Nombre+' ('+eq2+'): '+(p.g2||0)+(goleadores?'\n⚽ Goles: '+goleadores:'')+(p.nota?'\n📝 '+p.nota:'');
   if(navigator.share) navigator.share({title:'Frigurso Canchita',text:texto}).catch(()=>{});
   else navigator.clipboard.writeText(texto).then(()=>toast('📋 Copiado')).catch(()=>toast('No se pudo copiar'));
+}
+
+// Dibuja texto centrado con wrap y devuelve la altura total ocupada en px
+function wrapCanvasText(ctx,text,x,y,maxWidth,lineHeight) {
+  const words=text.split(' ');
+  let line='',lines=0;
+  for(let i=0;i<words.length;i++){
+    const test=line+words[i]+' ';
+    if(ctx.measureText(test).width>maxWidth&&line){
+      ctx.fillText(line,x,y+lines*lineHeight);
+      line=words[i]+' '; lines++;
+    } else line=test;
+  }
+  ctx.fillText(line,x,y+lines*lineHeight);
+  return (lines+1)*lineHeight;
+}
+
+function compartirPartidoImagen(id,e) {
+  e.stopPropagation();
+  const p=DB.partidos.find(x=>x.id===id); if(!p) return;
+  const eq1Nombre=p.nombreEq1||'Equipo 1', eq2Nombre=p.nombreEq2||'Equipo 2';
+  const W=800,H=1000;
+  const canvas=document.createElement('canvas');
+  canvas.width=W; canvas.height=H;
+  const ctx=canvas.getContext('2d');
+
+  const grad=ctx.createLinearGradient(0,0,W,H);
+  grad.addColorStop(0,'#0f1a0f'); grad.addColorStop(1,'#162016');
+  ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
+
+  ctx.textAlign='center';
+  ctx.fillStyle='#4ade80';
+  ctx.font='bold 34px sans-serif';
+  ctx.fillText('⚽ FRIGURSO CANCHITA',W/2,90);
+
+  ctx.fillStyle='#a8c8a8';
+  ctx.font='20px sans-serif';
+  ctx.fillText(fmtFecha(p.fecha),W/2,130);
+
+  if(p.suspendido){
+    ctx.fillStyle='#f87171';
+    ctx.font='bold 46px sans-serif';
+    ctx.fillText('🚫 SUSPENDIDO',W/2,H/2);
+    if(p.nota){ ctx.fillStyle='#a8c8a8'; ctx.font='18px sans-serif'; ctx.fillText(p.nota,W/2,H/2+50); }
+  } else {
+    const g1=p.g1||0,g2=p.g2||0;
+    ctx.fillStyle='#e8f5e8';
+    ctx.font='bold 26px sans-serif';
+    wrapCanvasText(ctx,eq1Nombre,W/2,220,700,32);
+    ctx.font='bold 90px monospace';
+    ctx.fillStyle=g1>g2?'#4ade80':g1<g2?'#f87171':'#e8f5e8';
+    ctx.fillText(String(g1),W/2-90,320);
+    ctx.fillStyle='#5a7a5a'; ctx.font='bold 40px sans-serif'; ctx.fillText('-',W/2,320);
+    ctx.fillStyle=g2>g1?'#4ade80':g2<g1?'#f87171':'#e8f5e8';
+    ctx.font='bold 90px monospace';
+    ctx.fillText(String(g2),W/2+90,320);
+    ctx.fillStyle='#e8f5e8'; ctx.font='bold 26px sans-serif';
+    wrapCanvasText(ctx,eq2Nombre,W/2,380,700,32);
+
+    let y=460;
+    const conteoGoles={};
+    (p.goles||[]).forEach(g=>{conteoGoles[g.jugId]=(conteoGoles[g.jugId]||0)+1;});
+    const golLineas=Object.keys(conteoGoles).map(jid=>getNombre(jid)+(conteoGoles[jid]>1?' x'+conteoGoles[jid]:''));
+    ctx.fillStyle='#fbbf24'; ctx.font='bold 20px sans-serif';
+    ctx.fillText('⚽ Goleadores',W/2,y); y+=36;
+    ctx.font='20px sans-serif'; ctx.fillStyle='#e8f5e8';
+    if(golLineas.length){
+      golLineas.forEach(l=>{ y+=wrapCanvasText(ctx,l,W/2,y,700,28); });
+    } else {
+      ctx.fillStyle='#5a7a5a'; ctx.fillText('Sin goleadores registrados',W/2,y); y+=28;
+    }
+
+    if(p.calificaciones&&Object.keys(p.calificaciones).length){
+      let bestId=null,bestVal=-1;
+      Object.entries(p.calificaciones).forEach(([jid,val])=>{if(val>bestVal){bestVal=val;bestId=jid;}});
+      if(bestId){
+        y+=20;
+        ctx.fillStyle='#fbbf24'; ctx.font='bold 22px sans-serif';
+        ctx.fillText('⭐ Figura: '+getNombre(bestId)+' ('+bestVal+')',W/2,y);
+      }
+    }
+    if(p.nota){ ctx.fillStyle='#5a7a5a'; ctx.font='16px sans-serif'; ctx.fillText('📝 '+p.nota,W/2,H-60); }
+  }
+
+  ctx.fillStyle='#2a3e2a'; ctx.font='14px sans-serif';
+  ctx.fillText('Generado con Frigurso Canchita',W/2,H-24);
+
+  canvas.toBlob(blob=>{
+    const file=new File([blob],'frigurso-'+p.fecha+'.png',{type:'image/png'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      navigator.share({files:[file],title:'Frigurso Canchita',text:'Resultado del partido'}).catch(()=>{});
+    } else {
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download='frigurso-'+p.fecha+'.png';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast('🖼️ Imagen descargada');
+    }
+  },'image/png');
 }
 
 let _eq1Sel=[],_eq2Sel=[],_golesEditar=[],_suspendido=false,_califEditar={};
@@ -859,6 +1084,13 @@ function abrirModalPartido(id) {
   document.getElementById('p-g1').value=p?(p.g1||0):0;
   document.getElementById('p-g2').value=p?(p.g2||0):0;
   document.getElementById('p-nota').value=p?(p.nota||''):'';
+  renderTorneoSelectPartido();
+  document.getElementById('p-torneo').value=p?(p.torneoId||''):'';
+  onCambioTorneoPartido();
+  if(p&&p.torneoId){
+    document.getElementById('p-torneo-eq1').value=p.torneoEq1Id||'';
+    document.getElementById('p-torneo-eq2').value=p.torneoEq2Id||'';
+  }
   renderPillsEq(); renderGolesEditar(); renderSuspendidoToggle(); renderCalifEditar(); abrirModal('partido');
 }
 
@@ -933,12 +1165,18 @@ function guardarPartido() {
   const eqTodos=new Set([..._eq1Sel,..._eq2Sel]);
   const calificaciones={};
   Object.keys(_califEditar).forEach(jid=>{if(eqTodos.has(jid)&&_califEditar[jid])calificaciones[jid]=_califEditar[jid];});
-  const data={id:id||uid(),fecha,g1,g2,eq1:[..._eq1Sel],eq2:[..._eq2Sel],goles:_golesEditar.filter(g=>g.jugId),nota:nota||undefined,nombreEq1:nombreEq1||undefined,nombreEq2:nombreEq2||undefined,suspendido:_suspendido||undefined,calificaciones:Object.keys(calificaciones).length?calificaciones:undefined};
+  const torneoId=document.getElementById('p-torneo').value||undefined;
+  const torneoEq1Id=torneoId?(document.getElementById('p-torneo-eq1').value||undefined):undefined;
+  const torneoEq2Id=torneoId?(document.getElementById('p-torneo-eq2').value||undefined):undefined;
+  const data={id:id||uid(),fecha,g1,g2,eq1:[..._eq1Sel],eq2:[..._eq2Sel],goles:_golesEditar.filter(g=>g.jugId),nota:nota||undefined,nombreEq1:nombreEq1||undefined,nombreEq2:nombreEq2||undefined,suspendido:_suspendido||undefined,calificaciones:Object.keys(calificaciones).length?calificaciones:undefined,torneoId,torneoEq1Id,torneoEq2Id};
   if(!nota) delete data.nota;
   if(!nombreEq1) delete data.nombreEq1;
   if(!nombreEq2) delete data.nombreEq2;
   if(!data.suspendido) delete data.suspendido;
   if(!data.calificaciones) delete data.calificaciones;
+  if(!data.torneoId) delete data.torneoId;
+  if(!data.torneoEq1Id) delete data.torneoEq1Id;
+  if(!data.torneoEq2Id) delete data.torneoEq2Id;
   if(id){const idx=DB.partidos.findIndex(p=>p.id===id);if(idx>=0)DB.partidos[idx]=data;}
   else DB.partidos.push(data);
   save(); cerrarModal('partido'); renderPartidos(); toast('✅ Partido guardado');
@@ -1247,6 +1485,253 @@ function renderStats() {
       '<td style="text-align:right;font-family:var(--mono);color:var(--text3)">'+x.d+'</td>'+
       '<td style="text-align:right;font-family:var(--mono);color:var(--red)">'+x.l+'</td></tr>'
     ).join(''):'<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">Sin datos</td></tr>');
+
+  renderRachas();
+  renderTorneoSelect();
+  renderTablaPosiciones();
+}
+
+// ─── RACHAS ────────────────────────────────────────────────────
+function computeRachas() {
+  return DB.jugadores.map(j=>{
+    const partidos=DB.partidos.filter(p=>!p.suspendido&&((p.eq1||[]).includes(j.id)||(p.eq2||[]).includes(j.id)))
+      .sort((a,b)=>b.fecha.localeCompare(a.fecha));
+    let racha=0;
+    for(const p of partidos){
+      const enEq1=(p.eq1||[]).includes(j.id);
+      const g1=p.g1||0,g2=p.g2||0;
+      const gano=(enEq1&&g1>g2)||(!enEq1&&g2>g1);
+      if(!gano) break;
+      racha++;
+    }
+    return {j,racha};
+  }).filter(x=>x.racha>=2).sort((a,b)=>b.racha-a.racha);
+}
+
+function renderRachas() {
+  const el=document.getElementById('stats-rachas-wrap');
+  const rachas=computeRachas();
+  if(!rachas.length){el.innerHTML='';return;}
+  el.innerHTML='<div class="section-title" style="margin-top:14px">🔥 Rachas de victorias</div>'+
+    '<div class="card" style="display:flex;flex-direction:column;gap:6px">'+
+    rachas.map(x=>'<div style="display:flex;align-items:center;justify-content:space-between">'+
+      '<span style="font-size:13px;font-weight:700;color:var(--text)">🔥 '+esc(x.j.nombre)+'</span>'+
+      '<span style="font-size:12px;color:var(--gold);font-weight:700">'+x.racha+' victorias seguidas</span>'+
+    '</div>').join('')+
+    '</div>';
+}
+
+// ─── TORNEOS ───────────────────────────────────────────────────
+let _torneoEquiposEditar=[];
+
+function renderTorneoSelect() {
+  const sel=document.getElementById('torneo-select');
+  const actual=sel.value;
+  sel.innerHTML='<option value="">— Elegí un torneo —</option>'+
+    DB.torneos.map(t=>'<option value="'+t.id+'" '+(t.id===actual?'selected':'')+'>'+esc(t.nombre)+'</option>').join('');
+}
+
+function computeTabla(torneoId) {
+  const torneo=DB.torneos.find(t=>t.id===torneoId);
+  if(!torneo) return [];
+  const tabla={};
+  torneo.equipos.forEach(eq=>{tabla[eq.id]={equipo:eq,pj:0,g:0,e:0,p:0,gf:0,gc:0,pts:0};});
+  DB.partidos.filter(p=>p.torneoId===torneoId&&!p.suspendido).forEach(p=>{
+    const id1=p.torneoEq1Id,id2=p.torneoEq2Id;
+    if(!tabla[id1]||!tabla[id2]) return;
+    const g1=p.g1||0,g2=p.g2||0;
+    tabla[id1].pj++; tabla[id2].pj++;
+    tabla[id1].gf+=g1; tabla[id1].gc+=g2;
+    tabla[id2].gf+=g2; tabla[id2].gc+=g1;
+    if(g1>g2){tabla[id1].g++;tabla[id1].pts+=3;tabla[id2].p++;}
+    else if(g2>g1){tabla[id2].g++;tabla[id2].pts+=3;tabla[id1].p++;}
+    else{tabla[id1].e++;tabla[id2].e++;tabla[id1].pts++;tabla[id2].pts++;}
+  });
+  return Object.values(tabla).sort((a,b)=>b.pts-a.pts||(b.gf-b.gc)-(a.gf-a.gc)||b.gf-a.gf);
+}
+
+function renderTablaPosiciones() {
+  const torneoId=document.getElementById('torneo-select').value;
+  const el=document.getElementById('tabla-posiciones');
+  if(!torneoId){el.innerHTML='<tr><td style="text-align:center;padding:20px;color:var(--text3)">Elegí un torneo para ver la tabla</td></tr>';return;}
+  const tabla=computeTabla(torneoId);
+  el.innerHTML='<tr><th>#</th><th>Equipo</th><th style="text-align:right">PJ</th><th style="text-align:right">G</th><th style="text-align:right">E</th><th style="text-align:right">P</th><th style="text-align:right">DG</th><th style="text-align:right">Pts</th></tr>'+
+    (tabla.length?tabla.map((x,i)=>
+      '<tr><td class="'+(i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'')+'">'+(i+1)+'</td>'+
+      '<td style="font-weight:700">'+esc(x.equipo.nombre)+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono)">'+x.pj+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);color:var(--accent)">'+x.g+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);color:var(--text3)">'+x.e+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);color:var(--red)">'+x.p+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono)">'+(x.gf-x.gc>0?'+':'')+(x.gf-x.gc)+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);font-weight:800;color:var(--gold)">'+x.pts+'</td></tr>'
+    ).join(''):'<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text3)">Sin partidos cargados en este torneo</td></tr>');
+}
+
+function abrirModalTorneo() {
+  document.getElementById('t-id').value='';
+  document.getElementById('t-nombre').value='';
+  _torneoEquiposEditar=[{nombre:''},{nombre:''}];
+  document.getElementById('btn-borrar-torneo').style.display='none';
+  renderEquiposTorneoEditar();
+  abrirModal('torneo');
+}
+
+function renderEquiposTorneoEditar() {
+  document.getElementById('t-equipos-lista').innerHTML=_torneoEquiposEditar.map((eq,i)=>
+    '<div class="gol-row"><input type="text" class="input" placeholder="Nombre del equipo" value="'+esc(eq.nombre)+'" oninput="_torneoEquiposEditar['+i+'].nombre=this.value">'+
+    '<button onclick="_torneoEquiposEditar.splice('+i+',1);renderEquiposTorneoEditar()">✕</button></div>'
+  ).join('');
+}
+
+function agregarEquipoTorneoInput() { _torneoEquiposEditar.push({nombre:''}); renderEquiposTorneoEditar(); }
+
+function guardarTorneo() {
+  const nombre=document.getElementById('t-nombre').value.trim();
+  if(!nombre){toast('⚠️ Ingresá el nombre del torneo');return;}
+  const equipos=_torneoEquiposEditar.map(e=>e.nombre.trim()).filter(Boolean).map(nombre=>({id:uid(),nombre}));
+  if(equipos.length<2){toast('⚠️ Cargá al menos 2 equipos');return;}
+  const id=document.getElementById('t-id').value;
+  const data={id:id||uid(),nombre,equipos};
+  if(id){const idx=DB.torneos.findIndex(t=>t.id===id);if(idx>=0){data.equipos=DB.torneos[idx].equipos;DB.torneos[idx]=data;}}
+  else DB.torneos.push(data);
+  save(); cerrarModal('torneo'); renderTorneoSelect(); renderTorneoSelectPartido(); toast('✅ Torneo guardado');
+}
+
+function borrarTorneo() {
+  const id=document.getElementById('t-id').value;
+  if(!id||!confirm('¿Borrar este torneo? Los partidos ya cargados no se borran.')) return;
+  DB.torneos=DB.torneos.filter(t=>t.id!==id);
+  save(); cerrarModal('torneo'); renderTorneoSelect(); renderTablaPosiciones(); renderTorneoSelectPartido();
+  toast('🗑 Torneo eliminado');
+}
+
+function renderTorneoSelectPartido() {
+  const sel=document.getElementById('p-torneo');
+  const actual=sel.value;
+  sel.innerHTML='<option value="">— Ninguno (amistoso) —</option>'+
+    DB.torneos.map(t=>'<option value="'+t.id+'" '+(t.id===actual?'selected':'')+'>'+esc(t.nombre)+'</option>').join('');
+}
+
+function onCambioTorneoPartido() {
+  const torneoId=document.getElementById('p-torneo').value;
+  const torneo=DB.torneos.find(t=>t.id===torneoId);
+  const wrap=document.getElementById('p-torneo-equipos');
+  if(!torneo){wrap.style.display='none';return;}
+  wrap.style.display='';
+  const opts=torneo.equipos.map(eq=>'<option value="'+eq.id+'">'+esc(eq.nombre)+'</option>').join('');
+  document.getElementById('p-torneo-eq1').innerHTML='<option value="">— Elegí —</option>'+opts;
+  document.getElementById('p-torneo-eq2').innerHTML='<option value="">— Elegí —</option>'+opts;
+}
+
+function onCambioTorneoEquipo(eqNum) {
+  const torneoId=document.getElementById('p-torneo').value;
+  const torneo=DB.torneos.find(t=>t.id===torneoId);
+  if(!torneo) return;
+  const equipoId=document.getElementById('p-torneo-eq'+eqNum).value;
+  const equipo=torneo.equipos.find(e=>e.id===equipoId);
+  if(equipo) document.getElementById('p-eq'+eqNum+'-nombre').value=equipo.nombre;
+}
+
+// ─── CAJA ──────────────────────────────────────────────────────
+function computeCaja() {
+  const aportado={},deberia={};
+  DB.jugadores.forEach(j=>{aportado[j.id]=0;deberia[j.id]=0;});
+  (DB.gastos||[]).forEach(g=>{
+    const partic=g.participantes||[];
+    if(!partic.length) return;
+    const cuota=g.monto/partic.length;
+    partic.forEach(id=>{if(deberia[id]!==undefined) deberia[id]+=cuota;});
+    if(aportado[g.pagadoPor]!==undefined) aportado[g.pagadoPor]+=g.monto;
+  });
+  const saldo={};
+  DB.jugadores.forEach(j=>{saldo[j.id]=(aportado[j.id]||0)-(deberia[j.id]||0);});
+  return {aportado,deberia,saldo};
+}
+
+function fmtMoney(n) { return '$'+Math.round(n).toLocaleString('es-AR'); }
+
+function renderCaja() {
+  const {aportado,deberia,saldo}=computeCaja();
+  const jugTop=DB.jugadores.map(j=>({j,saldo:saldo[j.id]||0,aportado:aportado[j.id]||0,deberia:deberia[j.id]||0}))
+    .sort((a,b)=>b.saldo-a.saldo);
+  const balEl=document.getElementById('caja-balance');
+  balEl.innerHTML='<tr><th>Jugador</th><th style="text-align:right">Aportó</th><th style="text-align:right">Debería</th><th style="text-align:right">Saldo</th></tr>'+
+    (jugTop.length?jugTop.map(x=>{
+      const col=x.saldo>0.01?'var(--accent)':x.saldo<-0.01?'var(--red)':'var(--text3)';
+      return '<tr><td style="font-weight:700">'+esc(x.j.nombre)+'</td>'+
+        '<td style="text-align:right;font-family:var(--mono)">'+fmtMoney(x.aportado)+'</td>'+
+        '<td style="text-align:right;font-family:var(--mono);color:var(--text3)">'+fmtMoney(x.deberia)+'</td>'+
+        '<td style="text-align:right;font-family:var(--mono);font-weight:800;color:'+col+'">'+fmtMoney(x.saldo)+'</td></tr>';
+    }).join(''):'<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text3)">Sin datos</td></tr>');
+
+  const el=document.getElementById('caja-lista');
+  const gastos=[...(DB.gastos||[])].sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  el.innerHTML=gastos.length?gastos.map(g=>{
+    const cuota=g.participantes&&g.participantes.length?g.monto/g.participantes.length:0;
+    return '<div class="card" onclick="abrirModalGasto(\''+g.id+'\')">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">'+
+        '<span style="font-weight:700;color:var(--text)">'+esc(g.concepto)+'</span>'+
+        '<span style="font-family:var(--mono);font-weight:800;color:var(--gold)">'+fmtMoney(g.monto)+'</span>'+
+      '</div>'+
+      '<div style="font-size:11px;color:var(--text3)">'+fmtFecha(g.fecha)+' · Pagó '+esc(getNombre(g.pagadoPor))+' · '+(g.participantes||[]).length+' personas ('+fmtMoney(cuota)+' c/u)</div>'+
+    '</div>';
+  }).join('') : '<div class="empty"><div class="empty-icon">💰</div><div class="empty-text">Sin gastos</div><div class="empty-sub">Tocá + para cargar uno</div></div>';
+}
+
+let _gastoParticipantes=[];
+
+function abrirModalGasto(id) {
+  const g=id?(DB.gastos||[]).find(x=>x.id===id):null;
+  document.getElementById('g-id').value=g?g.id:'';
+  document.getElementById('g-fecha').value=g?g.fecha:new Date().toISOString().slice(0,10);
+  document.getElementById('g-concepto').value=g?g.concepto:'';
+  document.getElementById('g-monto').value=g?g.monto:'';
+  document.getElementById('modal-gasto-title').textContent=g?'Editar gasto':'Nuevo gasto';
+  document.getElementById('btn-borrar-gasto').style.display=g?'':'none';
+
+  const pagadorSel=document.getElementById('g-pagador');
+  pagadorSel.innerHTML=DB.jugadores.map(j=>'<option value="'+j.id+'">'+esc(j.nombre)+'</option>').join('');
+  if(g) pagadorSel.value=g.pagadoPor;
+
+  _gastoParticipantes=g?[...(g.participantes||[])]:DB.jugadores.map(j=>j.id);
+  renderParticipantesGasto();
+  abrirModal('gasto');
+}
+
+function renderParticipantesGasto() {
+  document.getElementById('g-participantes').innerHTML=DB.jugadores.map(j=>{
+    const sel=_gastoParticipantes.includes(j.id);
+    return '<button type="button" class="pill '+(sel?'sel':'')+'" onclick="toggleParticipanteGasto(\''+j.id+'\')">'+esc(j.nombre)+'</button>';
+  }).join('');
+}
+
+function toggleParticipanteGasto(jugId) {
+  if(_gastoParticipantes.includes(jugId)) _gastoParticipantes=_gastoParticipantes.filter(x=>x!==jugId);
+  else _gastoParticipantes.push(jugId);
+  renderParticipantesGasto();
+}
+
+function guardarGasto() {
+  const fecha=document.getElementById('g-fecha').value;
+  const concepto=document.getElementById('g-concepto').value.trim();
+  const monto=parseFloat(document.getElementById('g-monto').value)||0;
+  const pagadoPor=document.getElementById('g-pagador').value;
+  if(!fecha||!concepto||monto<=0||!pagadoPor){toast('⚠️ Completá fecha, concepto, monto y quién pagó');return;}
+  if(!_gastoParticipantes.length){toast('⚠️ Seleccioná al menos un participante');return;}
+  const id=document.getElementById('g-id').value;
+  const data={id:id||uid(),fecha,concepto,monto,pagadoPor,participantes:[..._gastoParticipantes]};
+  if(!DB.gastos) DB.gastos=[];
+  if(id){const idx=DB.gastos.findIndex(g=>g.id===id);if(idx>=0)DB.gastos[idx]=data;}
+  else DB.gastos.push(data);
+  save(); cerrarModal('gasto'); renderCaja(); toast('✅ Gasto guardado');
+}
+
+function borrarGasto() {
+  const id=document.getElementById('g-id').value;
+  if(!id||!confirm('¿Borrar este gasto?')) return;
+  DB.gastos=DB.gastos.filter(g=>g.id!==id);
+  save(); cerrarModal('gasto'); renderCaja(); toast('🗑 Gasto eliminado');
 }
 
 // ─── PRÓXIMO PARTIDO ───────────────────────────────────────────
