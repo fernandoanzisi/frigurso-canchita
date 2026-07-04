@@ -284,7 +284,10 @@
     <div id="stats-rachas-wrap"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;margin-bottom:10px">
       <div class="section-title" style="margin-bottom:0">🏆 Torneo</div>
-      <button class="btn-icon" style="font-size:14px" onclick="abrirModalTorneo()" title="Nuevo torneo">＋</button>
+      <span>
+        <button class="btn-icon" style="font-size:14px" onclick="editarTorneoSeleccionado()" title="Editar torneo">✏️</button>
+        <button class="btn-icon" style="font-size:14px" onclick="abrirModalTorneo()" title="Nuevo torneo">＋</button>
+      </span>
     </div>
     <select class="input" id="torneo-select" onchange="renderTablaPosiciones()" style="margin-bottom:10px"></select>
     <div class="card" style="padding:0;overflow:hidden"><table class="stats-tabla" id="tabla-posiciones"></table></div>
@@ -440,7 +443,7 @@
 <!-- MODAL TORNEO -->
 <div class="modal-overlay" id="modal-torneo" onclick="if(event.target===this)cerrarModal('torneo')">
   <div class="modal">
-    <div class="modal-title">🏆 Nuevo torneo</div>
+    <div class="modal-title" id="modal-torneo-title">🏆 Nuevo torneo</div>
     <input type="hidden" id="t-id">
     <div class="field-wrap"><div class="field-label">Nombre del torneo</div><input type="text" class="input" id="t-nombre" placeholder="Ej: Torneo Apertura 2026"></div>
     <div class="field-wrap"><div class="field-label">Formato (opcional)</div>
@@ -1763,14 +1766,22 @@ function renderTablaPosiciones() {
     ).join(''):'<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text3)">Sin partidos cargados en este torneo</td></tr>');
 }
 
-function abrirModalTorneo() {
-  document.getElementById('t-id').value='';
-  document.getElementById('t-nombre').value='';
-  document.getElementById('t-formato').value='';
-  _torneoEquiposEditar=[{nombre:''},{nombre:''}];
-  document.getElementById('btn-borrar-torneo').style.display='none';
+function abrirModalTorneo(id) {
+  const t=id?DB.torneos.find(x=>x.id===id):null;
+  document.getElementById('t-id').value=t?t.id:'';
+  document.getElementById('t-nombre').value=t?t.nombre:'';
+  document.getElementById('t-formato').value=t?(t.formato||''):'';
+  document.getElementById('modal-torneo-title').textContent=t?'🏆 Editar torneo':'🏆 Nuevo torneo';
+  _torneoEquiposEditar=t?t.equipos.map(eq=>({...eq})):[{nombre:''},{nombre:''}];
+  document.getElementById('btn-borrar-torneo').style.display=t?'':'none';
   renderEquiposTorneoEditar();
   abrirModal('torneo');
+}
+
+function editarTorneoSeleccionado() {
+  const id=document.getElementById('torneo-select').value;
+  if(!id){toast('⚠️ Elegí un torneo primero');return;}
+  abrirModalTorneo(id);
 }
 
 function renderEquiposTorneoEditar() {
@@ -1785,15 +1796,18 @@ function agregarEquipoTorneoInput() { _torneoEquiposEditar.push({nombre:''}); re
 function guardarTorneo() {
   const nombre=document.getElementById('t-nombre').value.trim();
   if(!nombre){toast('⚠️ Ingresá el nombre del torneo');return;}
-  const equipos=_torneoEquiposEditar.map(e=>e.nombre.trim()).filter(Boolean).map(nombre=>({id:uid(),nombre}));
+  const equipos=_torneoEquiposEditar
+    .map(e=>({id:e.id,nombre:e.nombre.trim()}))
+    .filter(e=>e.nombre)
+    .map(e=>({id:e.id||uid(),nombre:e.nombre}));
   if(equipos.length<2){toast('⚠️ Cargá al menos 2 equipos');return;}
   const id=document.getElementById('t-id').value;
   const formato=document.getElementById('t-formato').value||undefined;
   const data={id:id||uid(),nombre,equipos,formato};
   if(!data.formato) delete data.formato;
-  if(id){const idx=DB.torneos.findIndex(t=>t.id===id);if(idx>=0){data.equipos=DB.torneos[idx].equipos;DB.torneos[idx]=data;}}
+  if(id){const idx=DB.torneos.findIndex(t=>t.id===id);if(idx>=0)DB.torneos[idx]=data;}
   else DB.torneos.push(data);
-  save(); cerrarModal('torneo'); renderTorneoSelect(); renderTorneoSelectPartido(); toast('✅ Torneo guardado');
+  save(); cerrarModal('torneo'); renderTorneoSelect(); renderTablaPosiciones(); renderTorneoSelectPartido(); toast('✅ Torneo guardado');
 }
 
 function borrarTorneo() {
