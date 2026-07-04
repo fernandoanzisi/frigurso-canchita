@@ -332,6 +332,7 @@
     <div class="perfil-stats" id="perfil-stats"></div>
     <div class="perfil-wdl" id="perfil-wdl"></div>
     <div id="perfil-tel" style="margin-bottom:10px"></div>
+    <div id="perfil-asistencia" style="margin-bottom:14px"></div>
     <div class="sep"></div>
     <div class="section-title" style="margin-bottom:8px">Últimos partidos</div>
     <div id="perfil-historial"></div>
@@ -383,13 +384,20 @@
 <script>
 // ─── STORAGE ───────────────────────────────────────────────────
 const KEY = 'canchita_v1';
-let DB = { jugadores:[], partidos:[], proximoPartido:null, vivo:null };
+let DB = { jugadores:[], partidos:[], convocatorias:[], proximoConvocatoriaId:null, vivo:null };
 
 function save() { try { localStorage.setItem(KEY,JSON.stringify(DB)); } catch(e){} }
 function load() {
   try {
     const d = JSON.parse(localStorage.getItem(KEY)||'null');
-    if (d&&d.jugadores) DB = {...{proximoPartido:null,vivo:null},...d};
+    if (d&&d.jugadores) DB = {...{convocatorias:[],proximoConvocatoriaId:null,vivo:null},...d};
+    if (DB.proximoPartido && !DB.convocatorias.length) {
+      const legacy = DB.proximoPartido;
+      const conv = {id:uid(), fecha:legacy.fecha, hora:legacy.hora, nota:legacy.nota, confirmaciones:legacy.confirmaciones||{}};
+      DB.convocatorias = [conv];
+      DB.proximoConvocatoriaId = conv.id;
+    }
+    delete DB.proximoPartido;
   } catch(e){}
 }
 
@@ -473,6 +481,24 @@ function computeStats() {
   return {goles,jugados,wins,draws,losses};
 }
 
+function computeAsistencia(jugId) {
+  const hoy=new Date().toISOString().slice(0,10);
+  const pasadas=DB.convocatorias.filter(c=>c.fecha<=hoy);
+  let asistio=0,avisoNo=0,noRespondio=0,confirmoNoFue=0;
+  pasadas.forEach(c=>{
+    const st=(c.confirmaciones||{})[jugId]||'';
+    if(st==='no'){avisoNo++;return;}
+    if(st==='si'){
+      const partido=DB.partidos.find(p=>p.fecha===c.fecha&&!p.suspendido);
+      const jugo=partido&&((partido.eq1||[]).includes(jugId)||(partido.eq2||[]).includes(jugId));
+      if(jugo) asistio++; else confirmoNoFue++;
+      return;
+    }
+    noRespondio++;
+  });
+  return {total:pasadas.length,asistio,avisoNo,noRespondio,confirmoNoFue};
+}
+
 // ─── HOME ──────────────────────────────────────────────────────
 function renderHome() {
   const stats = computeStats();
@@ -481,8 +507,9 @@ function renderHome() {
 
   // Próximo partido
   const proxEl = document.getElementById('home-proximo');
-  if (DB.proximoPartido) {
-    const {fecha,hora,nota,confirmaciones} = DB.proximoPartido;
+  const proxConv = DB.convocatorias.find(c=>c.id===DB.proximoConvocatoriaId);
+  if (proxConv) {
+    const {fecha,hora,nota,confirmaciones} = proxConv;
     const cuenta = fmtCountdown(fecha,hora);
     const conf = confirmaciones||{};
     const nSi = Object.values(conf).filter(v=>v==='si').length;
@@ -615,6 +642,20 @@ function abrirPerfil(id) {
     ? '<button class="btn-ghost" style="display:flex;align-items:center;justify-content:center;gap:8px" onclick="preguntarSiViene(\''+j.id+'\')">📲 Preguntar si viene (WhatsApp)</button>'
     : '<div style="font-size:11px;color:var(--text3);text-align:center">Sin teléfono cargado — tocá ✏️ para agregarlo</div>';
 
+  const asis=computeAsistencia(id);
+  document.getElementById('perfil-asistencia').innerHTML = asis.total
+    ? '<div class="card" style="padding:12px 14px">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
+          '<span style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Asistencia a convocatorias</span>'+
+          '<span style="font-size:16px;font-weight:900;color:var(--accent);font-family:var(--mono)">'+asis.asistio+'/'+asis.total+' ('+Math.round(asis.asistio/asis.total*100)+'%)</span>'+
+        '</div>'+
+        '<div style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text2)">'+
+          (asis.avisoNo?'<div>❌ Avisó que no iba: '+asis.avisoNo+'</div>':'')+
+          (asis.noRespondio?'<div>❓ No respondió: '+asis.noRespondio+'</div>':'')+
+          (asis.confirmoNoFue?'<div style="color:var(--red);font-weight:700">⚠️ Confirmó y no fue: '+asis.confirmoNoFue+'</div>':'')+
+        '</div></div>'
+    : '';
+
   document.getElementById('perfil-wdl').innerHTML=[
     [w,'G','rgba(74,222,128,.15)','var(--accent)'],
     [d,'E','rgba(255,255,255,.08)','var(--text3)'],
@@ -660,7 +701,7 @@ function preguntarSiViene(jugId) {
   if(!j||!j.telefono){toast('⚠️ Sin teléfono cargado');return;}
   const tel=j.telefono.replace(/\D/g,'');
   if(!tel){toast('⚠️ Teléfono inválido');return;}
-  const prox=DB.proximoPartido;
+  const prox=DB.convocatorias.find(c=>c.id===DB.proximoConvocatoriaId);
   const msg=prox
     ?'Hola '+j.nombre+'! ⚽ ¿Vas al partido del '+fmtMes(prox.fecha)+(prox.hora?' a las '+prox.hora:'')+'? Respondé Sí o No 🙌'
     :'Hola '+j.nombre+'! ⚽ ¿Vas al próximo partido? Respondé Sí o No 🙌';
@@ -1172,7 +1213,7 @@ function renderStats() {
 let _proxConfirmaciones={};
 
 function abrirModalProximo() {
-  const p=DB.proximoPartido;
+  const p=DB.convocatorias.find(c=>c.id===DB.proximoConvocatoriaId);
   document.getElementById('prox-fecha').value=p?p.fecha:'';
   document.getElementById('prox-hora').value=p?p.hora:'';
   document.getElementById('prox-nota').value=p?(p.nota||''):'';
@@ -1208,13 +1249,20 @@ function renderProxConfirmaciones() {
 function guardarProximo() {
   const fecha=document.getElementById('prox-fecha').value;
   if(!fecha){toast('⚠️ Ingresá la fecha');return;}
-  DB.proximoPartido={fecha,hora:document.getElementById('prox-hora').value,nota:document.getElementById('prox-nota').value.trim()||undefined,confirmaciones:{..._proxConfirmaciones}};
-  if(!DB.proximoPartido.nota) delete DB.proximoPartido.nota;
+  let conv=DB.convocatorias.find(c=>c.id===DB.proximoConvocatoriaId);
+  if(!conv){conv={id:uid()};DB.convocatorias.push(conv);DB.proximoConvocatoriaId=conv.id;}
+  conv.fecha=fecha;
+  conv.hora=document.getElementById('prox-hora').value;
+  conv.nota=document.getElementById('prox-nota').value.trim()||undefined;
+  conv.confirmaciones={..._proxConfirmaciones};
+  if(!conv.nota) delete conv.nota;
   save(); cerrarModal('proximo'); renderHome(); toast('📅 Guardado');
 }
 
 function borrarProximo() {
-  DB.proximoPartido=null; save(); cerrarModal('proximo'); renderHome(); toast('🗑 Eliminado');
+  DB.convocatorias=DB.convocatorias.filter(c=>c.id!==DB.proximoConvocatoriaId);
+  DB.proximoConvocatoriaId=null;
+  save(); cerrarModal('proximo'); renderHome(); toast('🗑 Eliminado');
 }
 
 // ─── OPCIONES ──────────────────────────────────────────────────
