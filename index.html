@@ -117,7 +117,9 @@
   .pill.sel{background:rgba(74,222,128,.15);border-color:var(--accent);color:var(--accent);font-weight:700}
   .pill:active{opacity:.75}
   .pill.susp-on{background:rgba(248,113,113,.15);border-color:var(--red);color:var(--red);font-weight:700}
+  .pill.talvez-on{background:rgba(251,191,36,.15);border-color:var(--gold);color:var(--gold);font-weight:700}
   .partido-card.suspendido{opacity:.7}
+  .proximo-confirm{font-size:11px;color:var(--text2);margin-top:4px;font-weight:600}
   .goles-lista-editar{display:flex;flex-direction:column;gap:5px;margin-top:6px}
   .gol-row{display:flex;align-items:center;gap:8px}
   .gol-row select.input{flex:1;padding:8px 10px}
@@ -349,6 +351,11 @@
     <div class="field-wrap"><div class="field-label">Fecha</div><input type="date" class="input" id="prox-fecha"></div>
     <div class="field-wrap"><div class="field-label">Hora</div><input type="time" class="input" id="prox-hora"></div>
     <div class="field-wrap"><div class="field-label">Nota (opcional)</div><input type="text" class="input" id="prox-nota" placeholder="Ej: Canchita Norte, traer pecheras"></div>
+    <div class="field-wrap">
+      <div class="field-label">✅ Confirmación de asistencia</div>
+      <div id="prox-confirmaciones-resumen" style="font-size:11px;color:var(--text3);margin-bottom:6px"></div>
+      <div class="pill-sel" id="prox-confirmaciones"></div>
+    </div>
     <button class="btn-primary" onclick="guardarProximo()">Guardar</button>
     <button class="btn-danger" id="btn-borrar-proximo" onclick="borrarProximo()" style="display:none">🗑 Eliminar</button>
     <button class="btn-ghost" onclick="cerrarModal('proximo')">Cancelar</button>
@@ -469,8 +476,13 @@ function renderHome() {
   // Próximo partido
   const proxEl = document.getElementById('home-proximo');
   if (DB.proximoPartido) {
-    const {fecha,hora,nota} = DB.proximoPartido;
+    const {fecha,hora,nota,confirmaciones} = DB.proximoPartido;
     const cuenta = fmtCountdown(fecha,hora);
+    const conf = confirmaciones||{};
+    const nSi = Object.values(conf).filter(v=>v==='si').length;
+    const nNo = Object.values(conf).filter(v=>v==='no').length;
+    const nTal = Object.values(conf).filter(v=>v==='talvez').length;
+    const confHtml = (nSi||nNo||nTal) ? '<div class="proximo-confirm">✅ '+nSi+' · ❌ '+nNo+' · ❓ '+nTal+'</div>' : '';
     proxEl.innerHTML =
       '<div class="proximo-card" onclick="abrirModalProximo()">'+
       '<div class="proximo-icon">📅</div>'+
@@ -478,6 +490,7 @@ function renderHome() {
         '<div class="proximo-titulo">Próximo partido</div>'+
         '<div class="proximo-fecha">'+fmtMes(fecha)+(hora?' · '+hora:'')+'</div>'+
         '<div class="proximo-cuenta">'+cuenta+(nota?' · '+esc(nota):'')+'</div>'+
+        confHtml+
       '</div></div>';
   } else {
     proxEl.innerHTML = '<div class="proximo-vacio" onclick="abrirModalProximo()"><span>📅</span><span class="proximo-vacio-txt" style="color:var(--text3);font-size:13px">Programar próximo partido...</span></div>';
@@ -1103,19 +1116,46 @@ function renderStats() {
 }
 
 // ─── PRÓXIMO PARTIDO ───────────────────────────────────────────
+let _proxConfirmaciones={};
+
 function abrirModalProximo() {
   const p=DB.proximoPartido;
   document.getElementById('prox-fecha').value=p?p.fecha:'';
   document.getElementById('prox-hora').value=p?p.hora:'';
   document.getElementById('prox-nota').value=p?(p.nota||''):'';
   document.getElementById('btn-borrar-proximo').style.display=p?'':'none';
+  _proxConfirmaciones={...(p&&p.confirmaciones||{})};
+  renderProxConfirmaciones();
   abrirModal('proximo');
+}
+
+function ciclarConfirmacion(jugId) {
+  const orden=['','si','no','talvez'];
+  const actual=_proxConfirmaciones[jugId]||'';
+  const next=orden[(orden.indexOf(actual)+1)%orden.length];
+  if(next==='') delete _proxConfirmaciones[jugId];
+  else _proxConfirmaciones[jugId]=next;
+  renderProxConfirmaciones();
+}
+
+function renderProxConfirmaciones() {
+  const c=document.getElementById('prox-confirmaciones');
+  if(!DB.jugadores.length){c.innerHTML='<div style="font-size:12px;color:var(--text3)">Cargá jugadores primero</div>';}
+  else c.innerHTML=DB.jugadores.map(j=>{
+    const st=_proxConfirmaciones[j.id]||'';
+    const icon=st==='si'?'✅':st==='no'?'❌':st==='talvez'?'❓':'⬜';
+    const cls=st==='si'?'sel':st==='no'?'susp-on':st==='talvez'?'talvez-on':'';
+    return '<button type="button" class="pill '+cls+'" onclick="ciclarConfirmacion(\''+j.id+'\')">'+icon+' '+esc(j.nombre)+'</button>';
+  }).join('');
+  const conteo={si:0,no:0,talvez:0};
+  Object.values(_proxConfirmaciones).forEach(v=>{if(conteo[v]!==undefined)conteo[v]++;});
+  document.getElementById('prox-confirmaciones-resumen').textContent='✅ '+conteo.si+' confirmados · ❌ '+conteo.no+' no van · ❓ '+conteo.talvez+' tal vez';
 }
 
 function guardarProximo() {
   const fecha=document.getElementById('prox-fecha').value;
   if(!fecha){toast('⚠️ Ingresá la fecha');return;}
-  DB.proximoPartido={fecha,hora:document.getElementById('prox-hora').value,nota:document.getElementById('prox-nota').value.trim()||undefined};
+  DB.proximoPartido={fecha,hora:document.getElementById('prox-hora').value,nota:document.getElementById('prox-nota').value.trim()||undefined,confirmaciones:{..._proxConfirmaciones}};
   if(!DB.proximoPartido.nota) delete DB.proximoPartido.nota;
   save(); cerrarModal('proximo'); renderHome(); toast('📅 Guardado');
 }
