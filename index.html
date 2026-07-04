@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
 <title>Frigurso Canchita</title>
-<link rel="manifest" href="/manifest.json">
+<link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#4ade80">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <style>
@@ -2008,7 +2008,7 @@ function cerrarModal(id) {
 function init() {
   load(); renderHome();
   history.replaceState({page:'home'},'','');
-  if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
 init();
 </script>
