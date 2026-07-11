@@ -338,7 +338,7 @@
     </button>
     <label class="admin-menu-btn" style="cursor:pointer">
       <span class="admin-menu-icon">📥</span>
-      <span class="admin-menu-txt"><span class="admin-menu-titulo">Importar backup</span><span class="admin-menu-sub">Reemplaza todos los datos actuales</span></span>
+      <span class="admin-menu-txt"><span class="admin-menu-titulo">Sumar backup</span><span class="admin-menu-sub">Trae los datos de otro dispositivo, sin borrar los tuyos</span></span>
       <span class="admin-menu-arrow">›</span>
       <input type="file" accept=".json" style="display:none" onchange="importarDatos(event)">
     </label>
@@ -2146,6 +2146,20 @@ function renderAdmin() {
     : '<span style="color:var(--text3)">Último backup: hace '+(dias===0?'menos de un día':dias+' día'+(dias===1?'':'s'))+'</span>';
 }
 
+// Fusiona dbEntrante DENTRO de DB: agrega lo nuevo por id, nunca borra ni pisa lo que ya existe.
+function _fusionarDB(dbActual, dbEntrante) {
+  let agregados=0;
+  const campos=['jugadores','partidos','convocatorias','gastos','torneos'];
+  campos.forEach(campo=>{
+    if(!Array.isArray(dbActual[campo])) dbActual[campo]=[];
+    if(!Array.isArray(dbEntrante[campo])) return;
+    const idsActuales=new Set(dbActual[campo].map(r=>r.id));
+    dbEntrante[campo].forEach(r=>{
+      if(r&&r.id&&!idsActuales.has(r.id)){ dbActual[campo].push(r); idsActuales.add(r.id); agregados++; }
+    });
+  });
+  return agregados;
+}
 function importarDatos(e) {
   const file=e.target.files[0]; if(!file) return;
   const reader=new FileReader();
@@ -2153,9 +2167,12 @@ function importarDatos(e) {
     try {
       const d=JSON.parse(ev.target.result);
       if(!d.jugadores||!d.partidos) throw new Error();
-      if(!confirm('¿Reemplazar todos los datos con el backup? No se puede deshacer.')){e.target.value='';return;}
-      DB=d; save(); renderHome(); renderAdmin(); toast('✅ Datos importados');
-    } catch(_){toast('❌ Archivo inválido');e.target.value='';}
+      if(!confirm('Esto va a sumar a lo que ya tenés los jugadores, partidos, gastos y torneos nuevos de ese backup. No se borra ni se pisa nada existente. ¿Continuar?')){e.target.value='';return;}
+      const agregados=_fusionarDB(DB, d);
+      save(); renderHome(); renderAdmin();
+      toast(agregados>0 ? '✅ Se sumaron '+agregados+' registros nuevos' : 'ℹ️ Ya tenías todo lo de ese backup');
+    } catch(_){toast('❌ Archivo inválido');}
+    finally{ e.target.value=''; }
   };
   reader.readAsText(file);
 }
