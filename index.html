@@ -326,7 +326,7 @@
     </button>
     <button class="admin-menu-btn" onclick="abrirPapelera()">
       <span class="admin-menu-icon">🗑</span>
-      <span class="admin-menu-txt"><span class="admin-menu-titulo">Papelera</span><span class="admin-menu-sub">Restaurar jugadores borrados</span></span>
+      <span class="admin-menu-txt"><span class="admin-menu-titulo">Papelera</span><span class="admin-menu-sub">Restaurar jugadores, partidos o gastos borrados</span></span>
       <span class="admin-menu-arrow">›</span>
     </button>
     <div class="sep"></div>
@@ -480,7 +480,7 @@
 <!-- MODAL PAPELERA -->
 <div class="modal-overlay" id="modal-papelera" onclick="if(event.target===this)cerrarModal('papelera')">
   <div class="modal">
-    <div class="modal-title">🗑 Papelera de jugadores</div>
+    <div class="modal-title">🗑 Papelera</div>
     <div id="papelera-lista"></div>
     <button class="btn-ghost" onclick="cerrarModal('papelera')">Cerrar</button>
   </div>
@@ -559,13 +559,16 @@
 <script>
 // ─── STORAGE ───────────────────────────────────────────────────
 const KEY = 'canchita_v1';
-let DB = { jugadores:[], partidos:[], convocatorias:[], proximoConvocatoriaId:null, vivo:null, papelera:[], gastos:[], torneos:[] };
+let DB = { jugadores:[], partidos:[], convocatorias:[], proximoConvocatoriaId:null, vivo:null, papelera:[], papeleraPartidos:[], papeleraGastos:[], gastos:[], torneos:[] };
 
-function save() { try { localStorage.setItem(KEY,JSON.stringify(DB)); } catch(e){} }
+function save() {
+  try { localStorage.setItem(KEY,JSON.stringify(DB)); return true; }
+  catch(e) { toast('❌ No se pudo guardar: sin espacio. Borrá alguna foto o liberá espacio del navegador'); return false; }
+}
 function load() {
   try {
     const d = JSON.parse(localStorage.getItem(KEY)||'null');
-    if (d&&d.jugadores) DB = {...{convocatorias:[],proximoConvocatoriaId:null,vivo:null,papelera:[],gastos:[],torneos:[]},...d};
+    if (d&&d.jugadores) DB = {...{convocatorias:[],proximoConvocatoriaId:null,vivo:null,papelera:[],papeleraPartidos:[],papeleraGastos:[],gastos:[],torneos:[]},...d};
     if (DB.proximoPartido && !DB.convocatorias.length) {
       const legacy = DB.proximoPartido;
       const conv = {id:uid(), fecha:legacy.fecha, hora:legacy.hora, nota:legacy.nota, confirmaciones:legacy.confirmaciones||{}};
@@ -642,6 +645,7 @@ function fmtMes(s) {
 let _toastT;
 function toast(msg) {
   const el=document.getElementById('toast');
+  el.onclick=null; el.style.pointerEvents='';
   el.textContent=msg; el.classList.add('show');
   clearTimeout(_toastT);
   _toastT=setTimeout(()=>el.classList.remove('show'),2600);
@@ -698,7 +702,8 @@ function resolverConvocatoria(convId,accion) {
   if(!conv) return;
   if(accion==='suspender') {
     DB.partidos.push({id:uid(),fecha:conv.fecha,g1:0,g2:0,eq1:[],eq2:[],goles:[],suspendido:true,nota:conv.nota});
-    save(); renderHome(); toast('🚫 Marcado como suspendido');
+    if(!save()) return;
+    renderHome(); toast('🚫 Marcado como suspendido');
   } else {
     navGo('partidos',document.getElementById('nav-partidos'));
     abrirModalPartido();
@@ -996,10 +1001,13 @@ function guardarJugador() {
   const nombre=document.getElementById('j-nombre').value.trim();
   if(!nombre){toast('⚠️ Ingresá un nombre');return;}
   const id=document.getElementById('j-id').value;
+  const duplicado=DB.jugadores.find(j=>j.id!==id&&j.nombre.trim().toLowerCase()===nombre.toLowerCase());
+  if(duplicado&&!confirm('Ya existe un jugador llamado "'+duplicado.nombre+'". ¿Agregar igual?')) return;
   const data={id:id||uid(),nombre,posicion:document.getElementById('j-pos').value,numero:parseInt(document.getElementById('j-num').value)||null,edad:parseInt(document.getElementById('j-edad').value)||null,telefono:document.getElementById('j-tel').value.trim()||null,foto:_jFotoData||null};
   if(id){const idx=DB.jugadores.findIndex(j=>j.id===id);if(idx>=0)DB.jugadores[idx]=data;}
   else DB.jugadores.push(data);
-  save(); cerrarModal('jugador'); renderJugadores();
+  if(!save()) return;
+  cerrarModal('jugador'); renderJugadores();
   toast('✅ '+nombre+(id?' actualizado':' agregado'));
 }
 
@@ -1010,7 +1018,8 @@ function borrarJugador() {
   DB.jugadores=DB.jugadores.filter(x=>x.id!==id);
   if(!DB.papelera) DB.papelera=[];
   DB.papelera.push({...j,_borradoEn:Date.now()});
-  save(); cerrarModal('jugador'); renderJugadores();
+  if(!save()) return;
+  cerrarModal('jugador'); renderJugadores();
   toast('🗑 '+j.nombre+' movido a la papelera');
 }
 
@@ -1018,16 +1027,46 @@ function abrirPapelera() { renderPapelera(); abrirModal('papelera'); }
 
 function renderPapelera() {
   const el=document.getElementById('papelera-lista');
-  const lista=DB.papelera||[];
-  el.innerHTML=lista.length?lista.map(j=>
-    '<div class="jugador-row" style="cursor:default">'+
-      '<div class="jugador-avatar">'+iniciales(j.nombre)+'</div>'+
-      '<div style="flex:1"><div class="jugador-nombre">'+esc(j.nombre)+'</div>'+
-      '<div class="jugador-pos">'+(j.posicion||'Sin posición')+'</div></div>'+
-      '<button class="btn-icon" style="font-size:14px" title="Restaurar" onclick="restaurarJugador(\''+j.id+'\')">♻️</button>'+
-      '<button class="btn-icon" style="font-size:14px;margin-left:6px" title="Eliminar para siempre" onclick="borrarJugadorDefinitivo(\''+j.id+'\')">🗑</button>'+
-    '</div>'
-  ).join('') : '<div style="text-align:center;padding:20px;color:var(--text3)">La papelera está vacía</div>';
+  const jugs=DB.papelera||[];
+  const partidos=[...(DB.papeleraPartidos||[])].sort((a,b)=>b._borradoEn-a._borradoEn);
+  const gastos=[...(DB.papeleraGastos||[])].sort((a,b)=>b._borradoEn-a._borradoEn);
+  if(!jugs.length&&!partidos.length&&!gastos.length){
+    el.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3)">La papelera está vacía</div>';
+    return;
+  }
+  let html='';
+  if(jugs.length){
+    html+='<div class="section-title" style="margin-top:0">Jugadores</div>'+jugs.map(j=>
+      '<div class="jugador-row" style="cursor:default">'+
+        '<div class="jugador-avatar">'+iniciales(j.nombre)+'</div>'+
+        '<div style="flex:1"><div class="jugador-nombre">'+esc(j.nombre)+'</div>'+
+        '<div class="jugador-pos">'+(j.posicion||'Sin posición')+'</div></div>'+
+        '<button class="btn-icon" style="font-size:14px" title="Restaurar" onclick="restaurarJugador(\''+j.id+'\')">♻️</button>'+
+        '<button class="btn-icon" style="font-size:14px;margin-left:6px" title="Eliminar para siempre" onclick="borrarJugadorDefinitivo(\''+j.id+'\')">🗑</button>'+
+      '</div>'
+    ).join('');
+  }
+  if(partidos.length){
+    html+='<div class="section-title" style="margin-top:14px">Partidos</div>'+partidos.map(p=>
+      '<div class="jugador-row" style="cursor:default">'+
+        '<div style="flex:1"><div class="jugador-nombre">'+fmtFecha(p.fecha)+(p.suspendido?' · suspendido':' · '+(p.g1||0)+' - '+(p.g2||0))+'</div>'+
+        '<div class="jugador-pos">'+esc(p.nombreEq1||'Equipo 1')+' vs '+esc(p.nombreEq2||'Equipo 2')+'</div></div>'+
+        '<button class="btn-icon" style="font-size:14px" title="Restaurar" onclick="restaurarPartido(\''+p.id+'\')">♻️</button>'+
+        '<button class="btn-icon" style="font-size:14px;margin-left:6px" title="Eliminar para siempre" onclick="borrarPartidoDefinitivo(\''+p.id+'\')">🗑</button>'+
+      '</div>'
+    ).join('');
+  }
+  if(gastos.length){
+    html+='<div class="section-title" style="margin-top:14px">Gastos</div>'+gastos.map(g=>
+      '<div class="jugador-row" style="cursor:default">'+
+        '<div style="flex:1"><div class="jugador-nombre">'+esc(g.concepto)+'</div>'+
+        '<div class="jugador-pos">'+fmtFecha(g.fecha)+' · '+fmtMoney(g.monto)+'</div></div>'+
+        '<button class="btn-icon" style="font-size:14px" title="Restaurar" onclick="restaurarGasto(\''+g.id+'\')">♻️</button>'+
+        '<button class="btn-icon" style="font-size:14px;margin-left:6px" title="Eliminar para siempre" onclick="borrarGastoDefinitivo(\''+g.id+'\')">🗑</button>'+
+      '</div>'
+    ).join('');
+  }
+  el.innerHTML=html;
 }
 
 function restaurarJugador(id) {
@@ -1036,7 +1075,8 @@ function restaurarJugador(id) {
   const [j]=DB.papelera.splice(idx,1);
   delete j._borradoEn;
   DB.jugadores.push(j);
-  save(); renderPapelera(); renderJugadores();
+  if(!save()) return;
+  renderPapelera(); renderJugadores();
   toast('♻️ '+j.nombre+' restaurado');
 }
 
@@ -1053,7 +1093,8 @@ function borrarJugadorDefinitivo(id) {
     if(p.calificaciones) delete p.calificaciones[id];
   });
   DB.convocatorias.forEach(c=>{ if(c.confirmaciones) delete c.confirmaciones[id]; });
-  save(); renderPapelera();
+  if(!save()) return;
+  renderPapelera();
   toast('🗑 Eliminado definitivamente');
 }
 
@@ -1390,14 +1431,40 @@ function guardarPartido() {
   if(!data.costoReal) delete data.costoReal;
   if(id){const idx=DB.partidos.findIndex(p=>p.id===id);if(idx>=0)DB.partidos[idx]=data;}
   else DB.partidos.push(data);
-  save(); cerrarModal('partido'); renderPartidos(); toast('✅ Partido guardado');
+  if(!save()) return;
+  cerrarModal('partido'); renderPartidos(); toast('✅ Partido guardado');
 }
 
 function borrarPartido() {
   const id=document.getElementById('p-id').value;
-  if(!id||!confirm('¿Borrar este partido?')) return;
-  DB.partidos=DB.partidos.filter(p=>p.id!==id);
-  save(); cerrarModal('partido'); renderPartidos(); toast('🗑 Partido eliminado');
+  const p=DB.partidos.find(x=>x.id===id);
+  if(!p||!confirm('¿Borrar este partido? Se puede restaurar después desde la papelera.')) return;
+  DB.partidos=DB.partidos.filter(x=>x.id!==id);
+  if(!DB.papeleraPartidos) DB.papeleraPartidos=[];
+  DB.papeleraPartidos.push({...p,_borradoEn:Date.now()});
+  if(!save()) return;
+  cerrarModal('partido'); renderPartidos(); toast('🗑 Partido movido a la papelera');
+}
+
+function restaurarPartido(id) {
+  const idx=(DB.papeleraPartidos||[]).findIndex(x=>x.id===id);
+  if(idx<0) return;
+  const [p]=DB.papeleraPartidos.splice(idx,1);
+  delete p._borradoEn;
+  DB.partidos.push(p);
+  if(!save()) return;
+  renderPapelera(); renderPartidos();
+  toast('♻️ Partido restaurado');
+}
+
+function borrarPartidoDefinitivo(id) {
+  const idx=(DB.papeleraPartidos||[]).findIndex(x=>x.id===id);
+  if(idx<0) return;
+  if(!confirm('¿Eliminar este partido para siempre?')) return;
+  DB.papeleraPartidos.splice(idx,1);
+  if(!save()) return;
+  renderPapelera();
+  toast('🗑 Eliminado definitivamente');
 }
 
 // ─── SORTEO ────────────────────────────────────────────────────
@@ -1437,6 +1504,11 @@ function toggleSorteo(id) {
 function getPosJug(id){const j=DB.jugadores.find(x=>x.id===id);return(j&&j.posicion)||'';}
 function abrevPos(p){return{Arquero:'ARQ',Defensor:'DEF',Mediocampista:'MED',Delantero:'DEL'}[p]||'';}
 
+function avgCalifJug(id) {
+  const califs=DB.partidos.filter(p=>!p.suspendido&&p.calificaciones&&p.calificaciones[id]!=null).map(p=>p.calificaciones[id]);
+  return califs.length ? califs.reduce((a,b)=>a+b,0)/califs.length : null;
+}
+
 function ejecutarSorteo() {
   if(_sorteoSel.length<2){toast('⚠️ Seleccioná al menos 2 jugadores');return;}
   // Ordenar posiciones: arqueros primero para garantizar balance
@@ -1446,12 +1518,17 @@ function ejecutarSorteo() {
   _sorteoSel.forEach(id=>{const pos=getPosJug(id);grupos[pos].push(id);});
 
   const eq1=[],eq2=[];
+  const NEUTRO=5.5; // nivel neutro para jugadores sin calificaciones cargadas
+  let nivel1=0,nivel2=0;
   ORDEN.forEach(pos=>{
-    // Mezclar aleatoriamente dentro de cada grupo de posición
-    const gr=[...grupos[pos]].sort(()=>Math.random()-.5);
-    gr.forEach(id=>{
-      // Siempre asignar al equipo con menos jugadores para mantener balance
-      (eq1.length<=eq2.length?eq1:eq2).push(id);
+    // Mezclar al azar y luego ordenar de mejor a peor nivel (los sin datos quedan mezclados entre sí)
+    const gr=[...grupos[pos]].sort(()=>Math.random()-.5)
+      .map(id=>({id,val:avgCalifJug(id)??NEUTRO}))
+      .sort((a,b)=>b.val-a.val);
+    gr.forEach(({id,val})=>{
+      // Asignar al equipo con menor nivel acumulado, para balancear por nivel además de por posición
+      if(nivel1<=nivel2){eq1.push(id);nivel1+=val;}
+      else{eq2.push(id);nivel2+=val;}
     });
   });
 
@@ -1695,9 +1772,10 @@ function terminarVivo() {
   const g2=goles.filter(g=>g.eq===2).length;
   const fecha=new Date(inicio).toISOString().slice(0,10);
   const partido={id:uid(),fecha,g1,g2,eq1,eq2,goles:goles.map(g=>({jugId:g.jugId,eq:g.eq}))};
+  const vivoBackup=DB.vivo;
   DB.partidos.push(partido);
   DB.vivo=null;
-  save();
+  if(!save()) { DB.partidos.pop(); DB.vivo=vivoBackup; return; }
   cerrarVivo();
   if(_pagActual==='partidos') renderPartidos();
   if(_pagActual==='home') renderHome();
@@ -1871,14 +1949,16 @@ function guardarTorneo() {
   if(!data.formato) delete data.formato;
   if(id){const idx=DB.torneos.findIndex(t=>t.id===id);if(idx>=0)DB.torneos[idx]=data;}
   else DB.torneos.push(data);
-  save(); cerrarModal('torneo'); renderTorneoSelect(); renderTablaPosiciones(); renderTorneoSelectPartido(); toast('✅ Torneo guardado');
+  if(!save()) return;
+  cerrarModal('torneo'); renderTorneoSelect(); renderTablaPosiciones(); renderTorneoSelectPartido(); toast('✅ Torneo guardado');
 }
 
 function borrarTorneo() {
   const id=document.getElementById('t-id').value;
   if(!id||!confirm('¿Borrar este torneo? Los partidos ya cargados no se borran.')) return;
   DB.torneos=DB.torneos.filter(t=>t.id!==id);
-  save(); cerrarModal('torneo'); renderTorneoSelect(); renderTablaPosiciones(); renderTorneoSelectPartido();
+  if(!save()) return;
+  cerrarModal('torneo'); renderTorneoSelect(); renderTablaPosiciones(); renderTorneoSelectPartido();
   toast('🗑 Torneo eliminado');
 }
 
@@ -2054,14 +2134,41 @@ function guardarGasto() {
   if(!DB.gastos) DB.gastos=[];
   if(id){const idx=DB.gastos.findIndex(g=>g.id===id);if(idx>=0)DB.gastos[idx]=data;}
   else DB.gastos.push(data);
-  save(); cerrarModal('gasto'); renderCaja(); toast('✅ Gasto guardado');
+  if(!save()) return;
+  cerrarModal('gasto'); renderCaja(); toast('✅ Gasto guardado');
 }
 
 function borrarGasto() {
   const id=document.getElementById('g-id').value;
-  if(!id||!confirm('¿Borrar este gasto?')) return;
-  DB.gastos=DB.gastos.filter(g=>g.id!==id);
-  save(); cerrarModal('gasto'); renderCaja(); toast('🗑 Gasto eliminado');
+  const g=(DB.gastos||[]).find(x=>x.id===id);
+  if(!g||!confirm('¿Borrar este gasto? Se puede restaurar después desde la papelera.')) return;
+  DB.gastos=DB.gastos.filter(x=>x.id!==id);
+  if(!DB.papeleraGastos) DB.papeleraGastos=[];
+  DB.papeleraGastos.push({...g,_borradoEn:Date.now()});
+  if(!save()) return;
+  cerrarModal('gasto'); renderCaja(); toast('🗑 Gasto movido a la papelera');
+}
+
+function restaurarGasto(id) {
+  const idx=(DB.papeleraGastos||[]).findIndex(x=>x.id===id);
+  if(idx<0) return;
+  const [g]=DB.papeleraGastos.splice(idx,1);
+  delete g._borradoEn;
+  if(!DB.gastos) DB.gastos=[];
+  DB.gastos.push(g);
+  if(!save()) return;
+  renderPapelera(); renderCaja();
+  toast('♻️ Gasto restaurado');
+}
+
+function borrarGastoDefinitivo(id) {
+  const idx=(DB.papeleraGastos||[]).findIndex(x=>x.id===id);
+  if(idx<0) return;
+  if(!confirm('¿Eliminar este gasto para siempre?')) return;
+  DB.papeleraGastos.splice(idx,1);
+  if(!save()) return;
+  renderPapelera();
+  toast('🗑 Eliminado definitivamente');
 }
 
 // ─── PRÓXIMO PARTIDO ───────────────────────────────────────────
@@ -2111,13 +2218,15 @@ function guardarProximo() {
   conv.nota=document.getElementById('prox-nota').value.trim()||undefined;
   conv.confirmaciones={..._proxConfirmaciones};
   if(!conv.nota) delete conv.nota;
-  save(); cerrarModal('proximo'); renderHome(); toast('📅 Guardado');
+  if(!save()) return;
+  cerrarModal('proximo'); renderHome(); toast('📅 Guardado');
 }
 
 function borrarProximo() {
   DB.convocatorias=DB.convocatorias.filter(c=>c.id!==DB.proximoConvocatoriaId);
   DB.proximoConvocatoriaId=null;
-  save(); cerrarModal('proximo'); renderHome(); toast('🗑 Eliminado');
+  if(!save()) return;
+  cerrarModal('proximo'); renderHome(); toast('🗑 Eliminado');
 }
 
 // ─── OPCIONES ──────────────────────────────────────────────────
@@ -2169,7 +2278,8 @@ function importarDatos(e) {
       if(!d.jugadores||!d.partidos) throw new Error();
       if(!confirm('Esto va a sumar a lo que ya tenés los jugadores, partidos, gastos y torneos nuevos de ese backup. No se borra ni se pisa nada existente. ¿Continuar?')){e.target.value='';return;}
       const agregados=_fusionarDB(DB, d);
-      save(); renderHome(); renderAdmin();
+      if(!save()) return;
+      renderHome(); renderAdmin();
       toast(agregados>0 ? '✅ Se sumaron '+agregados+' registros nuevos' : 'ℹ️ Ya tenías todo lo de ese backup');
     } catch(_){toast('❌ Archivo inválido');}
     finally{ e.target.value=''; }
@@ -2177,11 +2287,27 @@ function importarDatos(e) {
   reader.readAsText(file);
 }
 
+let _swRegistration=null;
+
 function forzarUpdate() {
-  if(!('serviceWorker' in navigator)||!navigator.serviceWorker.controller){toast('ℹ️ Sin actualizaciones pendientes');return;}
-  navigator.serviceWorker.controller.postMessage({type:'SKIP_WAITING'});
-  navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload());
-  toast('🔄 Actualizando...');
+  if(!_swRegistration){toast('ℹ️ No se pudo verificar actualizaciones');return;}
+  _swRegistration.update().then(()=>{
+    if(_swRegistration.waiting){
+      _swRegistration.waiting.postMessage({type:'SKIP_WAITING'});
+      toast('🔄 Actualizando...');
+    } else {
+      toast('✅ Ya tenés la última versión');
+    }
+  }).catch(()=>toast('❌ No se pudo verificar actualizaciones'));
+}
+
+function avisarNuevaVersion() {
+  const el=document.getElementById('toast');
+  clearTimeout(_toastT);
+  el.innerHTML='🔄 Hay una versión nueva — <u>tocá para actualizar</u>';
+  el.onclick=()=>{ if(_swRegistration&&_swRegistration.waiting) _swRegistration.waiting.postMessage({type:'SKIP_WAITING'}); };
+  el.style.pointerEvents='all';
+  el.classList.add('show');
 }
 
 // ─── MODALS ────────────────────────────────────────────────────
@@ -2198,7 +2324,19 @@ function cerrarModal(id) {
 function init() {
   load(); renderHome();
   history.replaceState({page:'home'},'','');
-  if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+  if('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').then(reg=>{
+      _swRegistration=reg;
+      reg.addEventListener('updatefound', ()=>{
+        const nuevo=reg.installing;
+        if(!nuevo) return;
+        nuevo.addEventListener('statechange', ()=>{
+          if(nuevo.state==='installed' && navigator.serviceWorker.controller) avisarNuevaVersion();
+        });
+      });
+    }).catch(()=>{});
+    navigator.serviceWorker.addEventListener('controllerchange', ()=>location.reload());
+  }
 }
 init();
 </script>
