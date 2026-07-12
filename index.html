@@ -532,6 +532,7 @@
       <div id="prox-confirmaciones-resumen" style="font-size:11px;color:var(--text3);margin-bottom:6px"></div>
       <div class="pill-sel" id="prox-confirmaciones"></div>
     </div>
+    <button class="btn-ghost" onclick="recordarPendientes()">📋 Recordar a los que faltan (WhatsApp)</button>
     <button class="btn-primary" onclick="guardarProximo()">Guardar</button>
     <button class="btn-danger" id="btn-borrar-proximo" onclick="borrarProximo()" style="display:none">🗑 Eliminar</button>
     <button class="btn-ghost" onclick="cerrarModal('proximo')">Cancelar</button>
@@ -939,6 +940,20 @@ function preguntarSiViene(jugId) {
     ?'Hola '+j.nombre+'! ⚽ ¿Vas al partido del '+fmtMes(prox.fecha)+(prox.hora?' a las '+prox.hora:'')+'? Respondé Sí o No 🙌'
     :'Hola '+j.nombre+'! ⚽ ¿Vas al próximo partido? Respondé Sí o No 🙌';
   window.open('https://wa.me/'+tel+'?text='+encodeURIComponent(msg),'_blank');
+}
+
+function recordarPendientes() {
+  const fecha=document.getElementById('prox-fecha').value;
+  if(!fecha){toast('⚠️ Ingresá la fecha primero');return;}
+  const hora=document.getElementById('prox-hora').value;
+  const nota=document.getElementById('prox-nota').value.trim();
+  const pendientes=DB.jugadores.filter(j=>!_proxConfirmaciones[j.id]);
+  if(!pendientes.length){toast('✅ Ya respondieron todos');return;}
+  const nombres=pendientes.map(j=>j.nombre).join(', ');
+  const texto='⚽ Recordatorio: partido el '+fmtMes(fecha)+(hora?' a las '+hora:'')+(nota?' · '+nota:'')+'.\nTodavía no confirmaron: '+nombres+'.\n¿Vienen? Avisen por acá 🙌';
+  if(navigator.share) navigator.share({title:'Frigurso Canchita',text:texto}).catch(()=>{});
+  else if(navigator.clipboard) navigator.clipboard.writeText(texto).then(()=>toast('📋 Copiado — pegalo en el grupo')).catch(()=>toast('❌ No se pudo copiar'));
+  else toast('❌ No se pudo compartir ni copiar');
 }
 
 let _jFotoData=null;
