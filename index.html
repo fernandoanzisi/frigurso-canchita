@@ -2349,16 +2349,26 @@ function importarDatos(e) {
   const file=e.target.files[0]; if(!file) return;
   const reader=new FileReader();
   reader.onload=(ev)=>{
+    let d;
     try {
-      const d=JSON.parse(ev.target.result);
-      if(!d.jugadores||!d.partidos) throw new Error();
-      if(!confirm('Esto va a sumar a lo que ya tenés los jugadores, partidos, gastos y torneos nuevos de ese backup. No se borra ni se pisa nada existente. ¿Continuar?')){e.target.value='';return;}
-      const agregados=_fusionarDB(DB, d);
-      if(!save()) return;
-      renderHome(); renderAdmin();
-      toast(agregados>0 ? '✅ Se sumaron '+agregados+' registros nuevos' : 'ℹ️ Ya tenías todo lo de ese backup');
-    } catch(_){toast('❌ Archivo inválido');}
-    finally{ e.target.value=''; }
+      const texto=String(ev.target.result).replace(/^﻿/,'').trim();
+      d=JSON.parse(texto);
+    } catch(err){
+      toast('❌ El archivo no es un JSON válido ('+err.message+')');
+      e.target.value='';
+      return;
+    }
+    if(!d||typeof d!=='object'||!Array.isArray(d.jugadores)||!Array.isArray(d.partidos)){
+      toast('❌ Ese archivo no tiene la estructura de un backup de Canchita');
+      e.target.value='';
+      return;
+    }
+    if(!confirm('Esto va a sumar a lo que ya tenés los jugadores, partidos, gastos y torneos nuevos de ese backup. No se borra ni se pisa nada existente. ¿Continuar?')){e.target.value='';return;}
+    const agregados=_fusionarDB(DB, d);
+    if(!save()) return;
+    renderHome(); renderAdmin();
+    toast(agregados>0 ? '✅ Se sumaron '+agregados+' registros nuevos' : 'ℹ️ Ya tenías todo lo de ese backup');
+    e.target.value='';
   };
   reader.readAsText(file);
 }
