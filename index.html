@@ -162,11 +162,6 @@
   .res-d{background:rgba(255,255,255,.08);color:var(--text3)}
   .res-l{background:rgba(248,113,113,.12);color:var(--red)}
 
-  /* SORTEO */
-  .sorteo-resultado{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
-  .sorteo-eq-title{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
-  .sorteo-eq-names{font-size:15px;font-weight:700;color:var(--text);line-height:1.5}
-
   /* EN VIVO (pantalla completa) */
   .vivo-screen{position:fixed;inset:0;z-index:300;background:var(--bg);display:flex;flex-direction:column;transform:translateY(100%);transition:transform .3s;overflow-y:auto}
   .vivo-screen.open{transform:translateY(0)}
@@ -344,7 +339,6 @@
 <div class="page" id="page-partidos">
   <div class="header">
     <div class="header-title">⚽ Partidos</div>
-    <button class="btn-icon" onclick="abrirSorteo()" title="Sorteo de equipos">🔀</button>
     <button class="btn-icon" onclick="abrirVivo()" title="Partido en vivo" id="btn-vivo-hdr">🔴</button>
   </div>
   <div class="search-wrap">
@@ -498,6 +492,7 @@
     <div class="field-wrap"><div class="field-label">⚫ Equipo 2 — jugadores</div><div class="pill-sel" id="p-eq2-pills"></div></div>
     <div class="field-wrap"><button type="button" onclick="sortearEquiposModalPartido()" style="width:100%;padding:9px 14px;border-radius:8px;background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.25);color:var(--accent);font-size:12px;font-weight:700">🔀 Sortear equipos</button></div>
     <div class="field-wrap"><button type="button" onclick="sortearTodosLosJugadores()" style="width:100%;padding:9px 14px;border-radius:8px;background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.25);color:var(--accent);font-size:12px;font-weight:700">🔀 Sortear entre todos los jugadores</button></div>
+    <div class="field-wrap"><button type="button" onclick="presentarJugadoresModalPartido()" style="width:100%;padding:9px 14px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);font-size:12px;font-weight:700">🎬 Presentar jugadores</button></div>
     <div style="display:grid;grid-template-columns:1fr 40px 1fr;gap:8px;align-items:center;margin-bottom:14px">
       <div><div class="field-label">Goles EQ1</div><input type="number" class="input" id="p-g1" value="0" min="0" max="99" oninput="updateGolesInput()"></div>
       <div style="text-align:center;color:var(--text3);font-weight:800;padding-top:18px">—</div>
@@ -595,18 +590,6 @@
     <div class="section-title" style="margin-bottom:8px">Últimos partidos</div>
     <div id="perfil-historial"></div>
     <div style="margin-top:14px"><button class="btn-ghost" onclick="cerrarModal('perfil')">Cerrar</button></div>
-  </div>
-</div>
-
-<!-- MODAL SORTEO -->
-<div class="modal-overlay" id="modal-sorteo" onclick="if(event.target===this)cerrarModal('sorteo')">
-  <div class="modal">
-    <div class="modal-title">🔀 Sorteo de equipos</div>
-    <div id="sorteo-content"></div>
-    <button class="btn-primary" id="sorteo-btn-primario"></button>
-    <button class="btn-ghost" id="sorteo-btn-presentar" style="display:none" onclick="presentarEquiposSorteo()">🎬 Presentar equipos</button>
-    <button class="btn-ghost" id="sorteo-btn-resortear" style="display:none" onclick="ejecutarSorteo()">🔄 Volver a sortear</button>
-    <button class="btn-ghost" onclick="cerrarModal('sorteo')">Cancelar</button>
   </div>
 </div>
 
@@ -1486,6 +1469,7 @@ function sortearEquiposModalPartido() {
   if(pool.length<2){toast('⚠️ Seleccioná al menos 2 jugadores en los equipos');return;}
   const {eq1,eq2}=calcularSorteoEquipos(pool);
   _eq1Sel=eq1; _eq2Sel=eq2;
+  guardarSorteo(eq1,eq2);
   renderPillsEq();
   renderCalifEditar();
   renderCuotaEditar();
@@ -1497,6 +1481,7 @@ function sortearTodosLosJugadores() {
   if(ids.length<2){toast('⚠️ No hay suficientes jugadores cargados');return;}
   const {eq1,eq2}=calcularSorteoEquipos(ids);
   _eq1Sel=eq1; _eq2Sel=eq2;
+  guardarSorteo(eq1,eq2);
   renderPillsEq();
   renderCalifEditar();
   renderCuotaEditar();
@@ -1595,41 +1580,7 @@ function borrarPartidoDefinitivo(id) {
 }
 
 // ─── SORTEO ────────────────────────────────────────────────────
-let _sorteoSel=[], _sorteoResult=null;
-
-function abrirSorteo() {
-  _sorteoSel=[]; _sorteoResult=null;
-  renderSorteoSetup();
-  abrirModal('sorteo');
-}
-
-function renderSorteoSetup() {
-  document.getElementById('sorteo-content').innerHTML=
-    '<div class="field-label" style="margin-bottom:8px">Seleccioná los jugadores presentes</div>'+
-    '<div class="pill-sel" id="sorteo-pills">'+
-      DB.jugadores.map(j=>'<button class="pill '+(_sorteoSel.includes(j.id)?'sel':'')+'" onclick="toggleSorteo(\''+j.id+'\')" style="display:flex;flex-direction:column;align-items:center;gap:1px;padding:8px 12px">'+
-        '<span>'+esc(j.nombre)+'</span>'+
-        (j.posicion?'<span style="font-size:9px;opacity:.65;font-weight:600">'+esc(j.posicion)+'</span>':'')+
-      '</button>').join('')+
-    '</div><div style="height:10px"></div>';
-  const btn=document.getElementById('sorteo-btn-primario');
-  btn.textContent='🔀 Sortear';
-  btn.onclick=ejecutarSorteo;
-  document.getElementById('sorteo-btn-presentar').style.display='none';
-  document.getElementById('sorteo-btn-resortear').style.display='none';
-}
-
-function toggleSorteo(id) {
-  if(_sorteoSel.includes(id))_sorteoSel=_sorteoSel.filter(x=>x!==id);
-  else _sorteoSel.push(id);
-  document.querySelectorAll('#sorteo-pills .pill').forEach(b=>{
-    const jugId=b.getAttribute('onclick').match(/'([^']+)'/)[1];
-    b.classList.toggle('sel',_sorteoSel.includes(jugId));
-  });
-}
-
 function getPosJug(id){const j=DB.jugadores.find(x=>x.id===id);return(j&&j.posicion)||'';}
-function abrevPos(p){return{Arquero:'ARQ',Defensor:'DEF',Mediocampista:'MED',Delantero:'DEL'}[p]||'';}
 
 function avgCalifJug(id) {
   const califs=DB.partidos.filter(p=>!p.suspendido&&p.calificaciones&&p.calificaciones[id]!=null).map(p=>p.calificaciones[id]);
@@ -1660,50 +1611,11 @@ function calcularSorteoEquipos(sel) {
   return {eq1,eq2};
 }
 
-function ejecutarSorteo() {
-  if(_sorteoSel.length<2){toast('⚠️ Seleccioná al menos 2 jugadores');return;}
-  const {eq1,eq2}=calcularSorteoEquipos(_sorteoSel);
-
-  _sorteoResult={eq1,eq2};
-
+function guardarSorteo(eq1,eq2) {
   DB.sorteos=DB.sorteos||[];
   DB.sorteos.unshift({id:uid(),ts:Date.now(),eq1,eq2});
   DB.sorteos=DB.sorteos.slice(0,5);
   save();
-
-  // Detectar conflictos de posición
-  const avisos=[];
-  ORDEN.filter(p=>p).forEach(pos=>{
-    const n1=eq1.filter(id=>getPosJug(id)===pos).length;
-    const n2=eq2.filter(id=>getPosJug(id)===pos).length;
-    if(n1>1&&n2===0) avisos.push('⚠️ Equipo 1 tiene '+n1+' '+pos+'s');
-    if(n2>1&&n1===0) avisos.push('⚠️ Equipo 2 tiene '+n2+' '+pos+'s');
-  });
-
-  function chipJug(id){
-    const ab=abrevPos(getPosJug(id));
-    return '<span style="display:inline-block;margin:2px 3px">'+esc(getNombre(id))+(ab?'<span style="font-size:9px;color:var(--text3);font-weight:700;margin-left:3px">'+ab+'</span>':'')+'</span>';
-  }
-
-  document.getElementById('sorteo-content').innerHTML=
-    '<div class="sorteo-resultado">'+
-      '<div style="margin-bottom:10px"><div class="sorteo-eq-title">⚪ Equipo 1 ('+eq1.length+')</div>'+
-      '<div class="sorteo-eq-names" style="line-height:1.8">'+eq1.map(chipJug).join('<span style="color:var(--text3)"> · </span>')+'</div></div>'+
-      '<div class="sep"></div>'+
-      '<div><div class="sorteo-eq-title">⚫ Equipo 2 ('+eq2.length+')</div>'+
-      '<div class="sorteo-eq-names" style="line-height:1.8">'+eq2.map(chipJug).join('<span style="color:var(--text3)"> · </span>')+'</div></div>'+
-    '</div>'+
-    (avisos.length?'<div style="background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--gold)">'+avisos.join('<br>')+'</div>':'');
-  const btn=document.getElementById('sorteo-btn-primario');
-  btn.textContent='↗ Abrir como partido';
-  btn.onclick=usarSorteoComoPartido;
-  document.getElementById('sorteo-btn-presentar').style.display='';
-  document.getElementById('sorteo-btn-resortear').style.display='';
-}
-
-function presentarEquiposSorteo() {
-  if(!_sorteoResult) return;
-  presentarEquipos(_sorteoResult.eq1,'⚪ Equipo 1',_sorteoResult.eq2,'⚫ Equipo 2');
 }
 
 // ─── PRESENTACIÓN DE EQUIPOS ───────────────────────────────────
@@ -1750,21 +1662,11 @@ function cerrarPresentacion() {
   if(!_poppingState) history.back();
 }
 
-function usarSorteoComoPartido() {
-  document.getElementById('modal-sorteo').classList.remove('open');
-  history.replaceState({modal:'partido'},'','');
-  document.getElementById('modal-partido').classList.add('open');
-  document.getElementById('p-id').value='';
-  document.getElementById('p-fecha').value=new Date().toISOString().slice(0,10);
-  document.getElementById('modal-partido-title').textContent='Nuevo partido';
-  document.getElementById('btn-borrar-partido').style.display='none';
-  document.getElementById('p-nota').value='';
-  _eq1Sel=[..._sorteoResult.eq1];
-  _eq2Sel=[..._sorteoResult.eq2];
-  _golesEditar=[];
-  document.getElementById('p-g1').value=0;
-  document.getElementById('p-g2').value=0;
-  renderPillsEq(); renderGolesEditar();
+function presentarJugadoresModalPartido() {
+  if(_eq1Sel.length===0&&_eq2Sel.length===0){toast('⚠️ Seleccioná jugadores primero');return;}
+  const n1=document.getElementById('p-eq1-nombre').value.trim()||'Equipo 1';
+  const n2=document.getElementById('p-eq2-nombre').value.trim()||'Equipo 2';
+  presentarEquipos(_eq1Sel,'⚪ '+n1,_eq2Sel,'⚫ '+n2);
 }
 
 // ─── EN VIVO ───────────────────────────────────────────────────
