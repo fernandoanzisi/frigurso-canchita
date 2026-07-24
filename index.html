@@ -491,7 +491,6 @@
     <div class="field-wrap"><div class="field-label">⚫ Nombre Equipo 2</div><input type="text" class="input" id="p-eq2-nombre" placeholder="Equipo 2"></div>
     <div class="field-wrap"><div class="field-label">⚫ Equipo 2 — jugadores</div><div class="pill-sel" id="p-eq2-pills"></div></div>
     <div class="field-wrap"><button type="button" onclick="sortearEquiposModalPartido()" style="width:100%;padding:9px 14px;border-radius:8px;background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.25);color:var(--accent);font-size:12px;font-weight:700">🔀 Sortear equipos</button></div>
-    <div class="field-wrap"><button type="button" onclick="sortearTodosLosJugadores()" style="width:100%;padding:9px 14px;border-radius:8px;background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.25);color:var(--accent);font-size:12px;font-weight:700">🔀 Sortear entre todos los jugadores</button></div>
     <div class="field-wrap"><button type="button" onclick="presentarJugadoresModalPartido()" style="width:100%;padding:9px 14px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);font-size:12px;font-weight:700">🎬 Presentar jugadores</button></div>
     <div style="display:grid;grid-template-columns:1fr 40px 1fr;gap:8px;align-items:center;margin-bottom:14px">
       <div><div class="field-label">Goles EQ1</div><input type="number" class="input" id="p-g1" value="0" min="0" max="99" oninput="updateGolesInput()"></div>
@@ -1465,8 +1464,9 @@ function toggleEq(jugId,eq) {
 }
 
 function sortearEquiposModalPartido() {
-  const pool=[...new Set([..._eq1Sel,..._eq2Sel])];
-  if(pool.length<2){toast('⚠️ Seleccioná al menos 2 jugadores en los equipos');return;}
+  let pool=[...new Set([..._eq1Sel,..._eq2Sel])];
+  if(pool.length===0) pool=DB.jugadores.map(j=>j.id);
+  if(pool.length<2){toast('⚠️ No hay suficientes jugadores');return;}
   const {eq1,eq2}=calcularSorteoEquipos(pool);
   _eq1Sel=eq1; _eq2Sel=eq2;
   guardarSorteo(eq1,eq2);
@@ -1474,18 +1474,6 @@ function sortearEquiposModalPartido() {
   renderCalifEditar();
   renderCuotaEditar();
   toast('🔀 Equipos sorteados');
-}
-
-function sortearTodosLosJugadores() {
-  const ids=DB.jugadores.map(j=>j.id);
-  if(ids.length<2){toast('⚠️ No hay suficientes jugadores cargados');return;}
-  const {eq1,eq2}=calcularSorteoEquipos(ids);
-  _eq1Sel=eq1; _eq2Sel=eq2;
-  guardarSorteo(eq1,eq2);
-  renderPillsEq();
-  renderCalifEditar();
-  renderCuotaEditar();
-  toast('🔀 Equipos sorteados entre todos los jugadores');
 }
 
 function updateGolesInput(){renderGolesEditar(true);}
