@@ -2350,13 +2350,21 @@ function importarDatos(e) {
   const reader=new FileReader();
   reader.onload=(ev)=>{
     let d;
+    const texto=String(ev.target.result).replace(/^﻿/,'').trim();
     try {
-      const texto=String(ev.target.result).replace(/^﻿/,'').trim();
       d=JSON.parse(texto);
-    } catch(err){
-      toast('❌ El archivo no es un JSON válido ('+err.message+')');
-      e.target.value='';
-      return;
+    } catch(err1){
+      // Algunos medios de transferencia (mail, etc) reflowan líneas largas y meten
+      // saltos de línea crudos en medio de strings largos (ej: fotos en base64),
+      // rompiendo el JSON. Un JSON válido nunca necesita esos caracteres sueltos
+      // dentro de un string, así que sacarlos y reintentar es seguro.
+      try {
+        d=JSON.parse(texto.replace(/[\r\n\t]+/g,''));
+      } catch(err2){
+        toast('❌ El archivo no es un JSON válido ('+err1.message+')');
+        e.target.value='';
+        return;
+      }
     }
     if(!d||typeof d!=='object'||!Array.isArray(d.jugadores)||!Array.isArray(d.partidos)){
       toast('❌ Ese archivo no tiene la estructura de un backup de Canchita');
