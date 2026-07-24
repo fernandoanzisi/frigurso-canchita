@@ -65,6 +65,12 @@
   .pendiente-sub{font-size:11px;color:var(--text3)}
   .pendiente-btn{width:34px;height:34px;border-radius:50%;background:var(--bg3);border:1px solid var(--border);color:var(--text2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 
+  /* SORTEOS GUARDADOS (vivo) */
+  .vivo-sorteo-card{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+  .vivo-sorteo-info{flex:1;min-width:0}
+  .vivo-sorteo-fecha{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+  .vivo-sorteo-eqs{font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
   /* JUGADORES */
   .search-wrap{padding:10px 14px 0;position:relative}
   .search-icon{position:absolute;left:26px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none;color:var(--text3)}
@@ -642,7 +648,7 @@
 <script>
 // ─── STORAGE ───────────────────────────────────────────────────
 const KEY = 'canchita_v1';
-let DB = { jugadores:[], partidos:[], convocatorias:[], proximoConvocatoriaId:null, vivo:null, papelera:[], papeleraPartidos:[], papeleraGastos:[], gastos:[], torneos:[] };
+let DB = { jugadores:[], partidos:[], convocatorias:[], proximoConvocatoriaId:null, vivo:null, papelera:[], papeleraPartidos:[], papeleraGastos:[], gastos:[], torneos:[], sorteos:[] };
 
 function save() {
   try { localStorage.setItem(KEY,JSON.stringify(DB)); return true; }
@@ -651,7 +657,7 @@ function save() {
 function load() {
   try {
     const d = JSON.parse(localStorage.getItem(KEY)||'null');
-    if (d&&d.jugadores) DB = {...{convocatorias:[],proximoConvocatoriaId:null,vivo:null,papelera:[],papeleraPartidos:[],papeleraGastos:[],gastos:[],torneos:[]},...d};
+    if (d&&d.jugadores) DB = {...{convocatorias:[],proximoConvocatoriaId:null,vivo:null,papelera:[],papeleraPartidos:[],papeleraGastos:[],gastos:[],torneos:[],sorteos:[]},...d};
     if (DB.proximoPartido && !DB.convocatorias.length) {
       const legacy = DB.proximoPartido;
       const conv = {id:uid(), fecha:legacy.fecha, hora:legacy.hora, nota:legacy.nota, confirmaciones:legacy.confirmaciones||{}};
@@ -1631,6 +1637,11 @@ function ejecutarSorteo() {
 
   _sorteoResult={eq1,eq2};
 
+  DB.sorteos=DB.sorteos||[];
+  DB.sorteos.unshift({id:uid(),ts:Date.now(),eq1,eq2});
+  DB.sorteos=DB.sorteos.slice(0,5);
+  save();
+
   // Detectar conflictos de posición
   const avisos=[];
   ORDEN.filter(p=>p).forEach(pos=>{
@@ -1755,8 +1766,29 @@ function renderVivoContent() {
 function renderVivoSetup() {
   document.getElementById('vivo-timer').textContent='00:00';
   document.getElementById('vivo-estado').textContent='Configuración';
+  const sorteos=DB.sorteos||[];
+  const sorteosHtml=sorteos.length
+    ?'<div class="field-label" style="margin-bottom:8px">🔀 Usar equipos de un sorteo guardado</div>'+
+      sorteos.map(s=>{
+        const d=new Date(s.ts);
+        const fecha=d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+        const nombres1=s.eq1.map(getNombre).join(', ');
+        const nombres2=s.eq2.map(getNombre).join(', ');
+        return '<div class="vivo-sorteo-card">'+
+          '<div class="vivo-sorteo-info">'+
+            '<div class="vivo-sorteo-fecha">'+fecha+'</div>'+
+            '<div class="vivo-sorteo-eqs">⚪ '+esc(nombres1)+'</div>'+
+            '<div class="vivo-sorteo-eqs">⚫ '+esc(nombres2)+'</div>'+
+          '</div>'+
+          '<button class="pendiente-btn" onclick="usarSorteoGuardadoEnVivo(\''+s.id+'\')" title="Usar estos equipos">▶️</button>'+
+          '<button class="pendiente-btn" onclick="borrarSorteoGuardado(\''+s.id+'\')" title="Borrar">🗑</button>'+
+        '</div>';
+      }).join('')+
+      '<div class="sep"></div>'
+    :'';
   document.getElementById('vivo-content').innerHTML=
     '<div style="padding:16px;flex:1">'+
+    sorteosHtml+
     '<div class="field-label" style="margin-bottom:8px">⚪ Equipo 1</div>'+
     '<div class="pill-sel" id="vivo-eq1-pills"></div>'+
     '<div class="field-label" style="margin-top:14px;margin-bottom:8px">⚫ Equipo 2</div>'+
@@ -1767,6 +1799,21 @@ function renderVivoSetup() {
     '<button class="btn-danger" onclick="cerrarVivo()">Cancelar</button>'+
     '</div>';
   renderVivoPills();
+}
+
+function usarSorteoGuardadoEnVivo(id) {
+  const s=(DB.sorteos||[]).find(x=>x.id===id);
+  if(!s) return;
+  _vivoEq1Sel=[...s.eq1];
+  _vivoEq2Sel=[...s.eq2];
+  renderVivoPills();
+  toast('✅ Equipos cargados, tocá Iniciar partido');
+}
+
+function borrarSorteoGuardado(id) {
+  DB.sorteos=(DB.sorteos||[]).filter(x=>x.id!==id);
+  save();
+  renderVivoSetup();
 }
 
 function renderVivoPills() {
