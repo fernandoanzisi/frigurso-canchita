@@ -2454,10 +2454,10 @@ async function _hashPass(pass){
 }
 function fgOcultarLock(){
   document.getElementById('fg-lock').style.display = 'none';
-  try{ sessionStorage.setItem('canchita_unlocked','1'); }catch(e){}
+  try{ localStorage.setItem('canchita_unlocked','1'); }catch(e){}
 }
 function fgMostrarLock(){
-  try{ sessionStorage.removeItem('canchita_unlocked'); }catch(e){}
+  try{ localStorage.removeItem('canchita_unlocked'); }catch(e){}
   document.getElementById('lk-pass-in').value = '';
   fgHideErr('lk-ing-err');
   document.getElementById('fg-lock').style.display = 'flex';
@@ -2489,7 +2489,7 @@ if(localStorage.getItem('canchita_pass_hash')){
   document.getElementById('lk-crear').style.display = 'none';
   document.getElementById('lk-ingresar').style.display = 'block';
   let yaDesbloqueado = false;
-  try{ yaDesbloqueado = sessionStorage.getItem('canchita_unlocked') === '1'; }catch(e){}
+  try{ yaDesbloqueado = localStorage.getItem('canchita_unlocked') === '1'; }catch(e){}
   if(yaDesbloqueado) fgOcultarLock();
 }
 </script>
