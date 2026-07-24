@@ -86,7 +86,9 @@
   .jugador-goles-lbl{font-size:9px;color:var(--text3)}
 
   /* PARTIDOS */
-  .partido-card{background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:10px;overflow:hidden;cursor:pointer}
+  .partido-card{background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:10px;overflow:hidden;cursor:pointer;position:relative}
+  .btn-grabar{position:absolute;bottom:10px;right:10px;width:34px;height:34px;border-radius:50%;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:var(--red);font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:1}
+  .btn-grabar:active{opacity:.75}
   .partido-fecha{padding:8px 14px;background:var(--bg3);border-bottom:1px solid var(--border);font-size:11px;color:var(--text3);font-weight:600;display:flex;align-items:center;justify-content:space-between}
   .partido-resultado{padding:14px;display:flex;align-items:center;justify-content:space-between;gap:8px}
   .partido-equipo{flex:1}
@@ -1232,7 +1234,19 @@ function renderPartidoCard(p) {
     figuraHtml+
     cuotaHtml+
     (p.nota?'<div class="partido-nota">📝 '+esc(p.nota)+'</div>':'')+
+    '<div style="height:40px"></div>'+
+    '<button class="btn-grabar" onclick="grabarPartidoDesdeCard(\''+p.id+'\',event)" title="Grabar partido en vivo">🔴</button>'+
   '</div>';
+}
+
+function grabarPartidoDesdeCard(id,event) {
+  event.stopPropagation();
+  const p=DB.partidos.find(x=>x.id===id);
+  if(!p) return;
+  if(DB.vivo&&DB.vivo.fase==='activo'){ toast('⚠️ Ya hay un partido en vivo en curso'); abrirVivo(); return; }
+  DB.vivo={fase:'setup',eq1:[...(p.eq1||[])],eq2:[...(p.eq2||[])],goles:[],inicio:null};
+  save();
+  abrirVivo();
 }
 
 function renderPartidos() {
