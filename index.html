@@ -2508,13 +2508,22 @@ let _swRegistration=null;
 
 function forzarUpdate() {
   if(!_swRegistration){toast('ℹ️ No se pudo verificar actualizaciones');return;}
+  toast('🔍 Buscando actualización...');
   _swRegistration.update().then(()=>{
-    if(_swRegistration.waiting){
-      _swRegistration.waiting.postMessage({type:'SKIP_WAITING'});
+    const nuevo=_swRegistration.installing||_swRegistration.waiting;
+    if(!nuevo){ toast('✅ Ya tenés la última versión'); return; }
+    if(nuevo.state==='installed'){
+      nuevo.postMessage({type:'SKIP_WAITING'});
       toast('🔄 Actualizando...');
-    } else {
-      toast('✅ Ya tenés la última versión');
+      return;
     }
+    nuevo.addEventListener('statechange', function onState(){
+      if(nuevo.state==='installed'){
+        nuevo.removeEventListener('statechange',onState);
+        nuevo.postMessage({type:'SKIP_WAITING'});
+        toast('🔄 Actualizando...');
+      }
+    });
   }).catch(()=>toast('❌ No se pudo verificar actualizaciones'));
 }
 
