@@ -1221,7 +1221,7 @@ function renderPartidoCard(p) {
   }
   return '<div class="partido-card'+(p.suspendido?' suspendido':'')+'" onclick="abrirModalPartido(\''+p.id+'\')">'+
     '<div class="partido-fecha"><span>🗓 '+fmtFecha(p.fecha)+formatoHtml+(p.suspendido?' · <span style="color:var(--red)">suspendido</span>':'')+'</span><span>'+
-      '<button class="btn-share" onclick="compartirPartidoImagen(\''+p.id+'\',event)" title="Compartir resultado">🖼️</button>'+
+      '<button class="btn-share" onclick="compartirPartidoVideo(\''+p.id+'\',event)" title="Compartir resultado">🎬</button>'+
     '</span></div>'+
     '<div class="partido-resultado">'+
       '<div class="partido-equipo"><div class="partido-eq-nombre">⚪ '+esc(eq1Nombre)+'</div><div class="partido-eq-nombres">'+esc(eq1Names)+'</div></div>'+
@@ -1276,9 +1276,7 @@ function wrapCanvasText(ctx,text,x,y,maxWidth,lineHeight) {
   return (lines+1)*lineHeight;
 }
 
-function compartirPartidoImagen(id,e) {
-  e.stopPropagation();
-  const p=DB.partidos.find(x=>x.id===id); if(!p) return;
+function dibujarCanvasResultado(p) {
   const eq1Nombre=p.nombreEq1||'Equipo 1', eq2Nombre=p.nombreEq2||'Equipo 2';
   let figuraId=null,figuraVal=-1;
   if(p.calificaciones) Object.entries(p.calificaciones).forEach(([jid,val])=>{if(val>figuraVal){figuraVal=val;figuraId=jid;}});
@@ -1300,13 +1298,13 @@ function compartirPartidoImagen(id,e) {
   ctx.font='20px sans-serif';
   ctx.fillText(fmtFecha(p.fecha),W/2,130);
 
-  let texto;
+  let caption;
   if(p.suspendido){
     ctx.fillStyle='#f87171';
     ctx.font='bold 46px sans-serif';
     ctx.fillText('🚫 SUSPENDIDO',W/2,H/2);
     if(p.nota){ ctx.fillStyle='#a8c8a8'; ctx.font='18px sans-serif'; ctx.fillText(p.nota,W/2,H/2+50); }
-    texto='⚽ Frigurso Canchita — '+fmtFecha(p.fecha)+'\n🚫 Partido suspendido'+(p.nota?'\n📝 '+p.nota:'');
+    caption='⚽ Frigurso Canchita — '+fmtFecha(p.fecha)+' · 🚫 Suspendido';
   } else {
     const g1=p.g1||0,g2=p.g2||0;
     const eq1Roster=(p.eq1||[]).map(getNombre).join(', ')||'—';
@@ -1352,30 +1350,152 @@ function compartirPartidoImagen(id,e) {
     }
     if(p.nota){ ctx.fillStyle='#5a7a5a'; ctx.font='16px sans-serif'; ctx.fillText('📝 '+p.nota,W/2,H-60); }
 
-    texto='⚽ Frigurso Canchita — '+fmtFecha(p.fecha)+
-      '\n⚪ '+eq1Nombre+' ('+eq1Roster+'): '+g1+
-      '\n⚫ '+eq2Nombre+' ('+eq2Roster+'): '+g2+
-      (golLineas.length?'\n⚽ Goles: '+golLineas.join(', '):'')+
-      (figuraId?'\n⭐ Figura: '+getNombre(figuraId)+' ('+figuraVal+')':'')+
-      (p.nota?'\n📝 '+p.nota:'');
+    caption='⚽ Frigurso Canchita — '+fmtFecha(p.fecha)+' · '+eq1Nombre+' '+g1+'-'+g2+' '+eq2Nombre+(figuraId?' · ⭐ '+getNombre(figuraId):'');
   }
 
   ctx.fillStyle='#2a3e2a'; ctx.font='14px sans-serif';
   ctx.fillText('Generado con Frigurso Canchita',W/2,H-24);
 
+  return {canvas,caption};
+}
+
+function compartirImagenCanvas(canvas,caption,fecha) {
   canvas.toBlob(blob=>{
-    const file=new File([blob],'frigurso-'+p.fecha+'.png',{type:'image/png'});
+    const file=new File([blob],'frigurso-'+fecha+'.png',{type:'image/png'});
     if(navigator.canShare&&navigator.canShare({files:[file]})){
-      navigator.share({files:[file],title:'Frigurso Canchita',text:texto}).catch(()=>{});
+      navigator.share({files:[file],title:'Frigurso Canchita',text:caption}).catch(()=>{});
     } else {
       const url=URL.createObjectURL(blob);
-      const a=document.createElement('a'); a.href=url; a.download='frigurso-'+p.fecha+'.png';
+      const a=document.createElement('a'); a.href=url; a.download='frigurso-'+fecha+'.png';
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      if(navigator.clipboard) navigator.clipboard.writeText(texto).then(()=>toast('🖼️ Imagen descargada · 📋 texto copiado')).catch(()=>toast('🖼️ Imagen descargada'));
-      else toast('🖼️ Imagen descargada');
+      toast('🖼️ Imagen descargada');
     }
   },'image/png');
+}
+
+const PRESENT_VIDEO_TITULO_MS=1300, PRESENT_VIDEO_JUGADOR_MS=2000, PRESENT_VIDEO_RESULTADO_MS=5000;
+
+function cargarImagen(src) {
+  return new Promise(res=>{
+    const img=new Image();
+    img.onload=()=>res(img);
+    img.onerror=()=>res(null);
+    img.src=src;
+  });
+}
+
+function dibujarFondoPresentVideo(ctx,W,H) {
+  const grad=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)/1.2);
+  grad.addColorStop(0,'#1e2e1e'); grad.addColorStop(1,'#0f1a0f');
+  ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
+}
+
+function dibujarCirculoInicialesVideo(ctx,cx,cy,r,nombre) {
+  const grad=ctx.createLinearGradient(cx-r,cy-r,cx+r,cy+r);
+  grad.addColorStop(0,'#4ade80'); grad.addColorStop(1,'#22c55e');
+  ctx.fillStyle=grad; ctx.fillRect(cx-r,cy-r,r*2,r*2);
+  ctx.fillStyle='#0f1a0f'; ctx.font='bold 90px sans-serif'; ctx.textAlign='center';
+  ctx.fillText(iniciales(nombre),cx,cy+30);
+}
+
+function dibujarFrameTituloVideo(ctx,W,H,texto) {
+  dibujarFondoPresentVideo(ctx,W,H);
+  ctx.textAlign='center';
+  ctx.fillStyle='#fbbf24'; ctx.font='bold 800 42px sans-serif';
+  ctx.fillText(texto.toUpperCase(),W/2,H/2);
+}
+
+async function dibujarFrameJugadorVideo(ctx,W,H,j) {
+  dibujarFondoPresentVideo(ctx,W,H);
+  const cx=W/2, cy=H/2-70, r=140;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.closePath(); ctx.clip();
+  const img=j.foto?await cargarImagen(j.foto):null;
+  if(img){
+    const scale=Math.max((r*2)/img.naturalWidth,(r*2)/img.naturalHeight);
+    const dw=img.naturalWidth*scale, dh=img.naturalHeight*scale;
+    ctx.drawImage(img,cx-dw/2,cy-dh/2,dw,dh);
+  } else {
+    dibujarCirculoInicialesVideo(ctx,cx,cy,r,j.nombre);
+  }
+  ctx.restore();
+  ctx.textAlign='center';
+  ctx.fillStyle='#e8f5e8'; ctx.font='bold 38px sans-serif';
+  ctx.fillText((j.numero?'#'+j.numero+' ':'')+j.nombre,W/2,cy+r+65);
+  const pos=(j.posicion||'')+(j.edad?' · '+j.edad+' años':'');
+  if(pos){ ctx.fillStyle='#a8c8a8'; ctx.font='22px sans-serif'; ctx.fillText(pos,W/2,cy+r+98); }
+}
+
+async function compartirPartidoVideo(id,e) {
+  e.stopPropagation();
+  const p=DB.partidos.find(x=>x.id===id); if(!p) return;
+  const btn=e.currentTarget;
+  const {canvas:canvasResultado,caption}=dibujarCanvasResultado(p);
+
+  const idsJugadores=[...(p.eq1||[]),...(p.eq2||[])];
+  const soportaVideo=window.MediaRecorder&&HTMLCanvasElement.prototype.captureStream&&
+    ['video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].some(t=>MediaRecorder.isTypeSupported(t));
+
+  if(!soportaVideo||p.suspendido||!idsJugadores.length){
+    compartirImagenCanvas(canvasResultado,caption,p.fecha);
+    return;
+  }
+
+  if(btn) btn.disabled=true;
+  toast('🎬 Generando video...');
+
+  try {
+    const W=800,H=1000;
+    const canvas=document.createElement('canvas'); canvas.width=W; canvas.height=H;
+    const ctx=canvas.getContext('2d');
+    dibujarFondoPresentVideo(ctx,W,H);
+
+    const mimeType=['video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(t=>MediaRecorder.isTypeSupported(t));
+    const stream=canvas.captureStream(15);
+    const chunks=[];
+    const recorder=new MediaRecorder(stream,mimeType?{mimeType}:undefined);
+    recorder.ondataavailable=ev=>{ if(ev.data&&ev.data.size) chunks.push(ev.data); };
+    const grabacionLista=new Promise(res=>{ recorder.onstop=res; });
+    recorder.start();
+
+    const esperar=ms=>new Promise(res=>setTimeout(res,ms));
+    const eq1Nombre=p.nombreEq1||'Equipo 1', eq2Nombre=p.nombreEq2||'Equipo 2';
+    const grupos=[[eq1Nombre,p.eq1||[]],[eq2Nombre,p.eq2||[]]];
+    for(const [nombreEq,ids] of grupos){
+      if(!ids.length) continue;
+      dibujarFrameTituloVideo(ctx,W,H,nombreEq);
+      await esperar(PRESENT_VIDEO_TITULO_MS);
+      for(const jid of ids){
+        const j=DB.jugadores.find(x=>x.id===jid);
+        if(!j) continue;
+        await dibujarFrameJugadorVideo(ctx,W,H,j);
+        await esperar(PRESENT_VIDEO_JUGADOR_MS);
+      }
+    }
+    ctx.clearRect(0,0,W,H);
+    ctx.drawImage(canvasResultado,0,0);
+    await esperar(PRESENT_VIDEO_RESULTADO_MS);
+
+    recorder.stop();
+    await grabacionLista;
+    const blob=new Blob(chunks,{type:mimeType||'video/webm'});
+    const ext=mimeType&&mimeType.includes('mp4')?'mp4':'webm';
+    const file=new File([blob],'frigurso-'+p.fecha+'.'+ext,{type:blob.type});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      navigator.share({files:[file],title:'Frigurso Canchita',text:caption}).catch(()=>{});
+    } else {
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download=file.name;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast('🎬 Video descargado');
+    }
+  } catch(err) {
+    compartirImagenCanvas(canvasResultado,caption,p.fecha);
+  } finally {
+    if(btn) btn.disabled=false;
+  }
 }
 
 let _eq1Sel=[],_eq2Sel=[],_golesEditar=[],_suspendido=false,_califEditar={};
