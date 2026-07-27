@@ -1350,7 +1350,7 @@ function dibujarCanvasResultado(p) {
     }
     if(p.nota){ ctx.fillStyle='#5a7a5a'; ctx.font='16px sans-serif'; ctx.fillText('📝 '+p.nota,W/2,H-60); }
 
-    caption='⚽ Frigurso Canchita — '+fmtFecha(p.fecha)+' · '+eq1Nombre+' '+g1+'-'+g2+' '+eq2Nombre+(figuraId?' · ⭐ '+getNombre(figuraId):'');
+    caption='⚽ Frigurso Canchita — '+fmtFecha(p.fecha)+' · '+eq1Nombre+' '+g1+'-'+g2+' '+eq2Nombre+(figuraId?' · MVP: '+getNombre(figuraId):'');
   }
 
   ctx.fillStyle='#2a3e2a'; ctx.font='14px sans-serif';
@@ -1374,7 +1374,7 @@ function compartirImagenCanvas(canvas,caption,fecha) {
   },'image/png');
 }
 
-const PRESENT_VIDEO_TITULO_MS=700, PRESENT_VIDEO_JUGADOR_MS=1000, PRESENT_VIDEO_RESULTADO_MS=3500;
+const PRESENT_VIDEO_PORTADA_MS=1500, PRESENT_VIDEO_EQUIPO_MS=2500, PRESENT_VIDEO_RESULTADO_MS=3500;
 
 function cargarImagen(src) {
   return new Promise(res=>{
@@ -1395,36 +1395,52 @@ function dibujarCirculoInicialesVideo(ctx,cx,cy,r,nombre) {
   const grad=ctx.createLinearGradient(cx-r,cy-r,cx+r,cy+r);
   grad.addColorStop(0,'#4ade80'); grad.addColorStop(1,'#22c55e');
   ctx.fillStyle=grad; ctx.fillRect(cx-r,cy-r,r*2,r*2);
-  ctx.fillStyle='#0f1a0f'; ctx.font='bold 90px sans-serif'; ctx.textAlign='center';
-  ctx.fillText(iniciales(nombre),cx,cy+30);
+  ctx.fillStyle='#0f1a0f'; ctx.font='bold '+Math.round(r*0.65)+'px sans-serif'; ctx.textAlign='center';
+  ctx.fillText(iniciales(nombre),cx,cy+r*0.21);
 }
 
-function dibujarFrameTituloVideo(ctx,W,H,texto) {
+function dibujarFramePortadaVideo(ctx,W,H,p,eq1Nombre,eq2Nombre) {
   dibujarFondoPresentVideo(ctx,W,H);
   ctx.textAlign='center';
-  ctx.fillStyle='#fbbf24'; ctx.font='bold 800 42px sans-serif';
-  ctx.fillText(texto.toUpperCase(),W/2,H/2);
+  ctx.fillStyle='#4ade80'; ctx.font='bold 38px sans-serif';
+  ctx.fillText('⚽ FRIGURSO CANCHITA',W/2,H/2-90);
+  ctx.fillStyle='#a8c8a8'; ctx.font='20px sans-serif';
+  ctx.fillText(fmtFecha(p.fecha),W/2,H/2-45);
+  ctx.fillStyle='#e8f5e8'; ctx.font='bold 26px sans-serif';
+  wrapCanvasText(ctx,'⚪ '+eq1Nombre+'  vs  '+eq2Nombre+' ⚫',W/2,H/2+40,700,34);
 }
 
-async function dibujarFrameJugadorVideo(ctx,W,H,j) {
+function dibujarFrameEquipoVideo(ctx,W,H,nombreEq,items) {
   dibujarFondoPresentVideo(ctx,W,H);
-  const cx=W/2, cy=H/2-70, r=140;
-  ctx.save();
-  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.closePath(); ctx.clip();
-  const img=j.foto?await cargarImagen(j.foto):null;
-  if(img){
-    const scale=Math.max((r*2)/img.naturalWidth,(r*2)/img.naturalHeight);
-    const dw=img.naturalWidth*scale, dh=img.naturalHeight*scale;
-    ctx.drawImage(img,cx-dw/2,cy-dh/2,dw,dh);
-  } else {
-    dibujarCirculoInicialesVideo(ctx,cx,cy,r,j.nombre);
-  }
-  ctx.restore();
   ctx.textAlign='center';
-  ctx.fillStyle='#e8f5e8'; ctx.font='bold 38px sans-serif';
-  ctx.fillText((j.numero?'#'+j.numero+' ':'')+j.nombre,W/2,cy+r+65);
-  const pos=(j.posicion||'')+(j.edad?' · '+j.edad+' años':'');
-  if(pos){ ctx.fillStyle='#a8c8a8'; ctx.font='22px sans-serif'; ctx.fillText(pos,W/2,cy+r+98); }
+  ctx.fillStyle='#fbbf24'; ctx.font='bold 36px sans-serif';
+  ctx.fillText(nombreEq.toUpperCase(),W/2,90);
+
+  const n=items.length;
+  const cols=n<=2?n:3;
+  const rows=Math.ceil(n/cols);
+  const marginX=50, gridTop=150, gridBottom=H-40;
+  const areaW=W-marginX*2, areaH=gridBottom-gridTop;
+  const cellW=areaW/cols, cellH=areaH/rows;
+  const r=Math.min(cellW,cellH)*0.30;
+
+  items.forEach((item,i)=>{
+    const col=i%cols, row=Math.floor(i/cols);
+    const cx=marginX+cellW*col+cellW/2;
+    const cy=gridTop+cellH*row+cellH*0.38;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.closePath(); ctx.clip();
+    if(item.img){
+      const scale=Math.max((r*2)/item.img.naturalWidth,(r*2)/item.img.naturalHeight);
+      const dw=item.img.naturalWidth*scale, dh=item.img.naturalHeight*scale;
+      ctx.drawImage(item.img,cx-dw/2,cy-dh/2,dw,dh);
+    } else {
+      dibujarCirculoInicialesVideo(ctx,cx,cy,r,item.j.nombre);
+    }
+    ctx.restore();
+    ctx.fillStyle='#e8f5e8'; ctx.font='bold '+Math.min(20,Math.round(r*0.28))+'px sans-serif';
+    ctx.fillText((item.j.numero?'#'+item.j.numero+' ':'')+item.j.nombre,cx,cy+r+24);
+  });
 }
 
 async function compartirPartidoVideo(id,e) {
@@ -1449,7 +1465,9 @@ async function compartirPartidoVideo(id,e) {
     const W=800,H=1000;
     const canvas=document.createElement('canvas'); canvas.width=W; canvas.height=H;
     const ctx=canvas.getContext('2d');
-    dibujarFondoPresentVideo(ctx,W,H);
+    const eq1Nombre=p.nombreEq1||'Equipo 1', eq2Nombre=p.nombreEq2||'Equipo 2';
+    const grupos=[[eq1Nombre,p.eq1||[]],[eq2Nombre,p.eq2||[]]].filter(([,ids])=>ids.length);
+    dibujarFramePortadaVideo(ctx,W,H,p,eq1Nombre,eq2Nombre);
 
     const mimeType=['video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(t=>MediaRecorder.isTypeSupported(t));
     const stream=canvas.captureStream(15);
@@ -1460,18 +1478,12 @@ async function compartirPartidoVideo(id,e) {
     recorder.start();
 
     const esperar=ms=>new Promise(res=>setTimeout(res,ms));
-    const eq1Nombre=p.nombreEq1||'Equipo 1', eq2Nombre=p.nombreEq2||'Equipo 2';
-    const grupos=[[eq1Nombre,p.eq1||[]],[eq2Nombre,p.eq2||[]]];
+    await esperar(PRESENT_VIDEO_PORTADA_MS);
     for(const [nombreEq,ids] of grupos){
-      if(!ids.length) continue;
-      dibujarFrameTituloVideo(ctx,W,H,nombreEq);
-      await esperar(PRESENT_VIDEO_TITULO_MS);
-      for(const jid of ids){
-        const j=DB.jugadores.find(x=>x.id===jid);
-        if(!j) continue;
-        await dibujarFrameJugadorVideo(ctx,W,H,j);
-        await esperar(PRESENT_VIDEO_JUGADOR_MS);
-      }
+      const jugadoresEq=ids.map(jid=>DB.jugadores.find(x=>x.id===jid)).filter(Boolean);
+      const items=await Promise.all(jugadoresEq.map(async j=>({j,img:j.foto?await cargarImagen(j.foto):null})));
+      dibujarFrameEquipoVideo(ctx,W,H,nombreEq,items);
+      await esperar(PRESENT_VIDEO_EQUIPO_MS);
     }
     ctx.clearRect(0,0,W,H);
     ctx.drawImage(canvasResultado,0,0);
@@ -1483,7 +1495,7 @@ async function compartirPartidoVideo(id,e) {
     const ext=mimeType&&mimeType.includes('mp4')?'mp4':'webm';
     const file=new File([blob],'frigurso-'+p.fecha+'.'+ext,{type:blob.type});
     if(navigator.canShare&&navigator.canShare({files:[file]})){
-      navigator.share({files:[file],title:'Frigurso Canchita',text:caption}).catch(()=>{});
+      avisarVideoListo(file,caption);
     } else {
       const url=URL.createObjectURL(blob);
       const a=document.createElement('a'); a.href=url; a.download=file.name;
@@ -2525,6 +2537,18 @@ function forzarUpdate() {
       }
     });
   }).catch(()=>toast('❌ No se pudo verificar actualizaciones'));
+}
+
+function avisarVideoListo(file,caption) {
+  const el=document.getElementById('toast');
+  clearTimeout(_toastT);
+  el.innerHTML='🎬 Video listo — <u>tocá para compartir</u>';
+  el.onclick=()=>{
+    el.onclick=null; el.style.pointerEvents=''; el.classList.remove('show');
+    navigator.share({files:[file],title:'Frigurso Canchita',text:caption}).catch(()=>toast('❌ No se pudo compartir'));
+  };
+  el.style.pointerEvents='all';
+  el.classList.add('show');
 }
 
 function avisarNuevaVersion() {
