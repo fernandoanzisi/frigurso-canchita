@@ -1374,7 +1374,7 @@ function compartirImagenCanvas(canvas,caption,fecha) {
   },'image/png');
 }
 
-const PRESENT_VIDEO_PORTADA_MS=1500, PRESENT_VIDEO_EQUIPO_MS=2500, PRESENT_VIDEO_RESULTADO_MS=3500;
+const PRESENT_VIDEO_PORTADA_MS=1500, PRESENT_VIDEO_EQUIPO_MS=2500, PRESENT_VIDEO_RESULTADO_MS=3500, PRESENT_VIDEO_PREMIO_MS=4200;
 
 function cargarImagen(src) {
   return new Promise(res=>{
@@ -1443,11 +1443,58 @@ function dibujarFrameEquipoVideo(ctx,W,H,nombreEq,items) {
   });
 }
 
+function crearConfettiPremio(W,H) {
+  const colores=['#4ade80','#fbbf24','#60a5fa','#f87171','#e8f5e8'];
+  return Array.from({length:34},(_,i)=>({
+    x:Math.random()*W, y0:-50-Math.random()*H*0.7, speed:110+Math.random()*90,
+    color:colores[i%colores.length], size:6+Math.random()*6,
+    rot:Math.random()*360, rotSpeed:(Math.random()-.5)*240
+  }));
+}
+
+function dibujarFramePremioVideo(ctx,W,H,confetti,t,nombre,val) {
+  dibujarFondoPresentVideo(ctx,W,H);
+  confetti.forEach(c=>{
+    const y=((c.y0+c.speed*(t/1000))%(H+100))-50;
+    const rot=(c.rot+c.rotSpeed*(t/1000))*Math.PI/180;
+    ctx.save(); ctx.translate(c.x,y); ctx.rotate(rot);
+    ctx.fillStyle=c.color; ctx.fillRect(-c.size/2,-c.size/1.6,c.size,c.size*1.3);
+    ctx.restore();
+  });
+  ctx.textAlign='center';
+  ctx.fillStyle='#fbbf24'; ctx.font='bold 22px sans-serif';
+  ctx.fillText('🏆 MEJOR JUGADOR DE LA CANCHA 🏆',W/2,H/2-180);
+  const bounce=Math.sin(t/1100*Math.PI*2)*12;
+  ctx.font='120px sans-serif';
+  ctx.fillText('🏆',W/2,H/2-30+bounce);
+  ctx.fillStyle='#fff'; ctx.font='bold 42px sans-serif';
+  wrapCanvasText(ctx,nombre,W/2,H/2+110,700,48);
+  ctx.fillStyle='#4ade80'; ctx.font='bold 22px sans-serif';
+  ctx.fillText('🥇 BOTA DE ORO FRIGURSO',W/2,H/2+165);
+  ctx.fillStyle='#a8c8a8'; ctx.font='18px sans-serif';
+  ctx.fillText('¡Felicitaciones! Puntaje del partido: '+val+'/10 ⭐',W/2,H/2+200);
+}
+
+function animarFramePremioVideo(ctx,W,H,nombre,val,durationMs) {
+  const confetti=crearConfettiPremio(W,H);
+  const start=performance.now();
+  return new Promise(resolve=>{
+    function tick(){
+      const t=performance.now()-start;
+      dibujarFramePremioVideo(ctx,W,H,confetti,t,nombre,val);
+      if(t<durationMs) requestAnimationFrame(tick); else resolve();
+    }
+    requestAnimationFrame(tick);
+  });
+}
+
 async function compartirPartidoVideo(id,e) {
   e.stopPropagation();
   const p=DB.partidos.find(x=>x.id===id); if(!p) return;
   const btn=e.currentTarget;
   const {canvas:canvasResultado,caption}=dibujarCanvasResultado(p);
+  let figuraId=null,figuraVal=-1;
+  if(p.calificaciones) Object.entries(p.calificaciones).forEach(([jid,val])=>{if(val>figuraVal){figuraVal=val;figuraId=jid;}});
 
   const idsJugadores=[...(p.eq1||[]),...(p.eq2||[])];
   const soportaVideo=window.MediaRecorder&&HTMLCanvasElement.prototype.captureStream&&
@@ -1488,6 +1535,8 @@ async function compartirPartidoVideo(id,e) {
     ctx.clearRect(0,0,W,H);
     ctx.drawImage(canvasResultado,0,0);
     await esperar(PRESENT_VIDEO_RESULTADO_MS);
+
+    if(figuraId) await animarFramePremioVideo(ctx,W,H,getNombre(figuraId),figuraVal,PRESENT_VIDEO_PREMIO_MS);
 
     recorder.stop();
     await grabacionLista;
