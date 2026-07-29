@@ -1374,8 +1374,9 @@ function compartirImagenCanvas(canvas,caption,fecha) {
   },'image/png');
 }
 
-const PRESENT_VIDEO_TITULO_MS=700, PRESENT_VIDEO_JUGADOR_MS=1000, PRESENT_VIDEO_RESULTADO_MS=2600, PRESENT_VIDEO_PREMIO_MS=4200, PRESENT_VIDEO_AFICHE_MS=3500;
-const PRESENT_VIDEO_TEAM_COLORS=['#4ade80','#60a5fa'];
+const PRESENT_VIDEO_TITULO_MS=800, PRESENT_VIDEO_JUGADOR_MS=1000, PRESENT_VIDEO_RESULTADO_MS=2600,
+  PRESENT_VIDEO_MVP_ANUNCIO_MS=1500, PRESENT_VIDEO_MVP_REVEAL_MS=3800, PRESENT_VIDEO_AFICHE_MS=3500;
+const PRESENT_VIDEO_TEAM_COLORS=['#38bdf8','#fb923c'];
 
 function cargarImagen(src) {
   return new Promise(res=>{
@@ -1386,9 +1387,9 @@ function cargarImagen(src) {
   });
 }
 
-function dibujarFondoPresentVideo(ctx,W,H,color) {
+function dibujarFondoPresentVideo(ctx,W,H) {
   const grad=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)/1.15);
-  grad.addColorStop(0,(color||'#1e2e1e')+'33'); grad.addColorStop(0.5,'#131f13'); grad.addColorStop(1,'#0a120a');
+  grad.addColorStop(0,'#1a2820'); grad.addColorStop(0.55,'#101a14'); grad.addColorStop(1,'#080d0a');
   ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
 }
 
@@ -1400,21 +1401,29 @@ function dibujarCirculoInicialesVideo(ctx,cx,cy,r,nombre,color) {
   ctx.fillText(iniciales(nombre),cx,cy+r*0.21);
 }
 
-function dibujarFrameTituloVideo(ctx,W,H,texto,color) {
-  dibujarFondoPresentVideo(ctx,W,H,color);
+function dibujarBadgeEquipoVideo(ctx,W,texto,color) {
   ctx.textAlign='center';
-  ctx.shadowColor=color; ctx.shadowBlur=30;
-  ctx.fillStyle=color; ctx.font='bold 44px sans-serif';
-  wrapCanvasText(ctx,texto.toUpperCase(),W/2,H/2,700,50);
-  ctx.shadowBlur=0;
+  ctx.fillStyle=color; ctx.font='bold 15px sans-serif';
+  ctx.fillText(texto.toUpperCase(),W/2,54);
+  const w=ctx.measureText(texto.toUpperCase()).width;
+  ctx.fillRect(W/2-w/2,64,w,3);
 }
 
-async function dibujarFrameJugadorVideo(ctx,W,H,j,color) {
-  dibujarFondoPresentVideo(ctx,W,H,color);
-  const cx=W/2, cy=H/2-70, r=140;
+function dibujarFrameTituloVideo(ctx,W,H,texto,color) {
+  dibujarFondoPresentVideo(ctx,W,H);
+  ctx.textAlign='center';
+  ctx.fillStyle='#fff'; ctx.font='bold 42px sans-serif';
+  const alto=wrapCanvasText(ctx,texto.toUpperCase(),W/2,150,700,48);
+  ctx.fillStyle=color; ctx.fillRect(W/2-45,150+alto-24,90,4);
+}
+
+async function dibujarFrameJugadorVideo(ctx,W,H,j,color,nombreEq) {
+  dibujarFondoPresentVideo(ctx,W,H);
+  dibujarBadgeEquipoVideo(ctx,W,nombreEq,color);
+  const cx=W/2, cy=H/2-40, r=140;
   ctx.save();
-  ctx.beginPath(); ctx.arc(cx,cy,r+7,0,Math.PI*2); ctx.closePath();
-  ctx.shadowColor=color; ctx.shadowBlur=25; ctx.strokeStyle=color; ctx.lineWidth=5; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,r+6,0,Math.PI*2); ctx.closePath();
+  ctx.strokeStyle=color; ctx.lineWidth=6; ctx.stroke();
   ctx.restore();
   ctx.save();
   ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.closePath(); ctx.clip();
@@ -1431,25 +1440,27 @@ async function dibujarFrameJugadorVideo(ctx,W,H,j,color) {
   ctx.fillStyle='#fff'; ctx.font='bold 38px sans-serif';
   ctx.fillText((j.numero?'#'+j.numero+' ':'')+j.nombre,W/2,cy+r+65);
   const pos=(j.posicion||'')+(j.edad?' · '+j.edad+' años':'');
-  if(pos){ ctx.fillStyle='#a8c8a8'; ctx.font='22px sans-serif'; ctx.fillText(pos,W/2,cy+r+98); }
+  if(pos){ ctx.fillStyle='#b8c8b8'; ctx.font='22px sans-serif'; ctx.fillText(pos,W/2,cy+r+98); }
 }
 
 function dibujarFrameResultadoVideo(ctx,W,H,p,eq1Nombre,eq2Nombre,escala) {
-  dibujarFondoPresentVideo(ctx,W,H,'#fbbf24');
+  dibujarFondoPresentVideo(ctx,W,H);
   const g1=p.g1||0,g2=p.g2||0;
   ctx.textAlign='center';
+  ctx.fillStyle='#fbbf24'; ctx.font='bold 22px sans-serif';
+  ctx.fillText('RESULTADO',W/2,90);
   ctx.save();
   ctx.translate(W/2,H/2); ctx.scale(escala,escala); ctx.translate(-W/2,-H/2);
-  ctx.fillStyle='#e8f5e8'; ctx.font='bold 30px sans-serif';
+  ctx.fillStyle='#fff'; ctx.font='bold 30px sans-serif';
   wrapCanvasText(ctx,eq1Nombre,W/2,H/2-150,700,36);
   ctx.font='bold 110px monospace';
-  ctx.fillStyle=g1>g2?'#4ade80':g1<g2?'#f87171':'#e8f5e8';
+  ctx.fillStyle=g1>g2?'#4ade80':g1<g2?'#f87171':'#fff';
   ctx.fillText(String(g1),W/2-100,H/2);
-  ctx.fillStyle='#5a7a5a'; ctx.font='bold 50px sans-serif'; ctx.fillText('-',W/2,H/2);
-  ctx.fillStyle=g2>g1?'#4ade80':g2<g1?'#f87171':'#e8f5e8';
+  ctx.fillStyle='#7a8a7a'; ctx.font='bold 50px sans-serif'; ctx.fillText('-',W/2,H/2);
+  ctx.fillStyle=g2>g1?'#4ade80':g2<g1?'#f87171':'#fff';
   ctx.font='bold 110px monospace';
   ctx.fillText(String(g2),W/2+100,H/2);
-  ctx.fillStyle='#e8f5e8'; ctx.font='bold 30px sans-serif';
+  ctx.fillStyle='#fff'; ctx.font='bold 30px sans-serif';
   wrapCanvasText(ctx,eq2Nombre,W/2,H/2+90,700,36);
   ctx.restore();
 }
@@ -1468,8 +1479,35 @@ function animarFrameResultadoVideo(ctx,W,H,p,eq1Nombre,eq2Nombre,durationMs) {
   });
 }
 
+function dibujarFrameAnuncioMvpVideo(ctx,W,H,t) {
+  dibujarFondoPresentVideo(ctx,W,H);
+  ctx.textAlign='center';
+  const a1=Math.min(1,t/300);
+  ctx.globalAlpha=a1;
+  ctx.fillStyle='#fbbf24'; ctx.font='bold 28px sans-serif';
+  ctx.fillText('⭐ Y AHORA... ⭐',W/2,H/2-30);
+  ctx.globalAlpha=1;
+  const a2=Math.max(0,Math.min(1,(t-450)/350));
+  ctx.globalAlpha=a2;
+  ctx.fillStyle='#fff'; ctx.font='bold 34px sans-serif';
+  wrapCanvasText(ctx,'EL MEJOR JUGADOR DEL PARTIDO',W/2,H/2+40,650,42);
+  ctx.globalAlpha=1;
+}
+
+function animarFrameAnuncioMvpVideo(ctx,W,H,durationMs) {
+  const start=performance.now();
+  return new Promise(resolve=>{
+    function tick(){
+      const t=performance.now()-start;
+      dibujarFrameAnuncioMvpVideo(ctx,W,H,t);
+      if(t<durationMs) requestAnimationFrame(tick); else resolve();
+    }
+    requestAnimationFrame(tick);
+  });
+}
+
 function crearConfettiPremio(W,H) {
-  const colores=['#4ade80','#fbbf24','#60a5fa','#f87171','#e8f5e8'];
+  const colores=['#fbbf24','#38bdf8','#fb923c','#4ade80','#fff'];
   return Array.from({length:34},(_,i)=>({
     x:Math.random()*W, y0:-50-Math.random()*H*0.7, speed:110+Math.random()*90,
     color:colores[i%colores.length], size:6+Math.random()*6,
@@ -1477,9 +1515,9 @@ function crearConfettiPremio(W,H) {
   }));
 }
 
-function dibujarFramePremioVideo(ctx,W,H,confetti,t,nombre,val) {
+function dibujarFramePremioVideo(ctx,W,H,confetti,t,nombre,val,img) {
   const grad=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)/1.1);
-  grad.addColorStop(0,'#3a2a0f'); grad.addColorStop(0.55,'#221708'); grad.addColorStop(1,'#0a0603');
+  grad.addColorStop(0,'#1c1712'); grad.addColorStop(0.55,'#100d0a'); grad.addColorStop(1,'#050403');
   ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
   confetti.forEach(c=>{
     const y=((c.y0+c.speed*(t/1000))%(H+100))-50;
@@ -1490,32 +1528,93 @@ function dibujarFramePremioVideo(ctx,W,H,confetti,t,nombre,val) {
   });
   ctx.textAlign='center';
   ctx.fillStyle='#fbbf24'; ctx.font='bold 22px sans-serif';
-  ctx.fillText('🏆 MEJOR JUGADOR DE LA CANCHA 🏆',W/2,H/2-180);
-  const bounce=Math.sin(t/1100*Math.PI*2)*12;
-  ctx.font='120px sans-serif';
-  ctx.fillText('🏆',W/2,H/2-30+bounce);
+  ctx.fillText('🏆 MEJOR JUGADOR DE LA CANCHA 🏆',W/2,80);
+  const bounce=Math.sin(t/1100*Math.PI*2)*8;
+  const cx=W/2, cy=H/2-60+bounce*0.3, r=125;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx,cy,r+7,0,Math.PI*2); ctx.closePath();
+  ctx.strokeStyle='#fbbf24'; ctx.lineWidth=7; ctx.stroke();
+  ctx.restore();
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.closePath(); ctx.clip();
+  if(img){
+    const scale=Math.max((r*2)/img.naturalWidth,(r*2)/img.naturalHeight);
+    const dw=img.naturalWidth*scale, dh=img.naturalHeight*scale;
+    ctx.drawImage(img,cx-dw/2,cy-dh/2,dw,dh);
+  } else {
+    dibujarCirculoInicialesVideo(ctx,cx,cy,r,nombre,'#fbbf24');
+  }
+  ctx.restore();
+  ctx.font='60px sans-serif';
+  ctx.fillText('🏆',cx+r*0.8,cy-r*0.7+bounce);
   ctx.fillStyle='#fff'; ctx.font='bold 42px sans-serif';
-  wrapCanvasText(ctx,nombre,W/2,H/2+110,700,48);
+  wrapCanvasText(ctx,nombre,W/2,cy+r+65,700,48);
   ctx.fillStyle='#fbbf24'; ctx.font='bold 22px sans-serif';
-  ctx.fillText('🥇 BOTA DE ORO FRIGURSO',W/2,H/2+165);
-  ctx.fillStyle='#e0c9a0'; ctx.font='18px sans-serif';
-  ctx.fillText('¡Felicitaciones! Puntaje del partido: '+val+'/10 ⭐',W/2,H/2+200);
+  ctx.fillText('🥇 BOTA DE ORO FRIGURSO',W/2,cy+r+110);
+  ctx.fillStyle='#d8c8a8'; ctx.font='18px sans-serif';
+  ctx.fillText('¡Felicitaciones! Puntaje del partido: '+val+'/10 ⭐',W/2,cy+r+145);
 }
 
-function animarFramePremioVideo(ctx,W,H,nombre,val,durationMs) {
+function animarFramePremioVideo(ctx,W,H,nombre,val,img,durationMs) {
   const confetti=crearConfettiPremio(W,H);
   const start=performance.now();
   return new Promise(resolve=>{
     function tick(){
       const t=performance.now()-start;
-      dibujarFramePremioVideo(ctx,W,H,confetti,t,nombre,val);
+      dibujarFramePremioVideo(ctx,W,H,confetti,t,nombre,val,img);
       if(t<durationMs) requestAnimationFrame(tick); else resolve();
     }
     requestAnimationFrame(tick);
   });
 }
 
-function iniciarAudioSuspensoVideo(introMs,resultadoMs,mvpMs) {
+function crearRugidoHinchada(audioCtx,master,at,duration) {
+  const bufferSize=Math.floor(audioCtx.sampleRate*duration);
+  const buffer=audioCtx.createBuffer(1,bufferSize,audioCtx.sampleRate);
+  const data=buffer.getChannelData(0);
+  for(let i=0;i<bufferSize;i++) data[i]=Math.random()*2-1;
+  const noise=audioCtx.createBufferSource(); noise.buffer=buffer;
+  const bandpass=audioCtx.createBiquadFilter(); bandpass.type='bandpass'; bandpass.frequency.value=1100; bandpass.Q.value=0.6;
+  const lowpass=audioCtx.createBiquadFilter(); lowpass.type='lowpass'; lowpass.frequency.value=3200;
+  const gain=audioCtx.createGain();
+  gain.gain.setValueAtTime(0.0001,at);
+  gain.gain.exponentialRampToValueAtTime(0.3,at+0.3);
+  gain.gain.setValueAtTime(0.3,at+duration*0.55);
+  gain.gain.exponentialRampToValueAtTime(0.0001,at+duration);
+  noise.connect(bandpass); bandpass.connect(lowpass); lowpass.connect(gain); gain.connect(master);
+  noise.start(at); noise.stop(at+duration+0.05);
+  for(let i=0;i<6;i++){
+    const t=at+0.15+Math.random()*duration*0.75;
+    const dur=0.18+Math.random()*0.22;
+    const size=Math.floor(audioCtx.sampleRate*dur);
+    const buf=audioCtx.createBuffer(1,size,audioCtx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let k=0;k<size;k++) d[k]=Math.random()*2-1;
+    const src=audioCtx.createBufferSource(); src.buffer=buf;
+    const bp=audioCtx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=500+Math.random()*1300; bp.Q.value=2.4;
+    const g=audioCtx.createGain();
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.16,t+0.04); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    src.connect(bp); bp.connect(g); g.connect(master);
+    src.start(t); src.stop(t+dur+0.02);
+  }
+}
+
+function crearWhooshConfetti(audioCtx,master,at) {
+  const dur=0.6;
+  const bufferSize=Math.floor(audioCtx.sampleRate*dur);
+  const buffer=audioCtx.createBuffer(1,bufferSize,audioCtx.sampleRate);
+  const data=buffer.getChannelData(0);
+  for(let i=0;i<bufferSize;i++) data[i]=Math.random()*2-1;
+  const noise=audioCtx.createBufferSource(); noise.buffer=buffer;
+  const hp=audioCtx.createBiquadFilter(); hp.type='highpass';
+  hp.frequency.setValueAtTime(1500,at); hp.frequency.exponentialRampToValueAtTime(6000,at+dur);
+  const g=audioCtx.createGain();
+  g.gain.setValueAtTime(0.0001,at); g.gain.exponentialRampToValueAtTime(0.2,at+0.08); g.gain.exponentialRampToValueAtTime(0.0001,at+dur);
+  noise.connect(hp); hp.connect(g); g.connect(master);
+  noise.start(at); noise.stop(at+dur+0.02);
+}
+
+function iniciarAudioSuspensoVideo(introMs,resultadoMs,anuncioMs,revealMs) {
   try {
     const AC=window.AudioContext||window.webkitAudioContext;
     if(!AC) return null;
@@ -1525,8 +1624,9 @@ function iniciarAudioSuspensoVideo(introMs,resultadoMs,mvpMs) {
     master.connect(dest); master.connect(audioCtx.destination);
     const now=audioCtx.currentTime;
     const resultadoAt=now+introMs/1000;
-    const mvpAt=resultadoAt+resultadoMs/1000;
-    const finAt=mvpAt+(mvpMs||0)/1000+PRESENT_VIDEO_AFICHE_MS/1000;
+    const mvpAnuncioAt=resultadoAt+resultadoMs/1000;
+    const mvpRevealAt=mvpAnuncioAt+(anuncioMs||0)/1000;
+    const finAt=mvpAnuncioAt+(anuncioMs||0)/1000+(revealMs||0)/1000+PRESENT_VIDEO_AFICHE_MS/1000;
 
     master.gain.linearRampToValueAtTime(0.4,now+0.8);
 
@@ -1556,14 +1656,25 @@ function iniciarAudioSuspensoVideo(introMs,resultadoMs,mvpMs) {
       const g=audioCtx.createGain(); g.gain.setValueAtTime(0,resultadoAt); g.gain.linearRampToValueAtTime(0.22,resultadoAt+0.04); g.gain.exponentialRampToValueAtTime(0.001,resultadoAt+1.4);
       o.connect(g); g.connect(master); o.start(resultadoAt); o.stop(resultadoAt+1.5);
     });
+    crearRugidoHinchada(audioCtx,master,resultadoAt,2.4);
 
-    if(mvpMs){
-      [392,523.25,659.25,783.99].forEach((freq,i)=>{
-        const at=mvpAt+i*0.11;
+    if(anuncioMs){
+      const swell=audioCtx.createOscillator(); swell.type='sine'; swell.frequency.setValueAtTime(220,mvpAnuncioAt);
+      swell.frequency.exponentialRampToValueAtTime(340,mvpRevealAt);
+      const swellGain=audioCtx.createGain(); swellGain.gain.setValueAtTime(0.0001,mvpAnuncioAt);
+      swellGain.gain.exponentialRampToValueAtTime(0.2,mvpRevealAt-0.15);
+      swellGain.gain.exponentialRampToValueAtTime(0.0001,mvpRevealAt+0.05);
+      swell.connect(swellGain); swellGain.connect(master);
+      swell.start(mvpAnuncioAt); swell.stop(mvpRevealAt+0.1);
+
+      [392,493.88,587.33,698.46,880].forEach((freq,i)=>{
+        const at=mvpRevealAt+i*0.1;
         const o=audioCtx.createOscillator(); o.type='triangle'; o.frequency.value=freq;
-        const g=audioCtx.createGain(); g.gain.setValueAtTime(0,at); g.gain.linearRampToValueAtTime(0.2,at+0.03); g.gain.exponentialRampToValueAtTime(0.001,at+1.1);
-        o.connect(g); g.connect(master); o.start(at); o.stop(at+1.2);
+        const g=audioCtx.createGain(); g.gain.setValueAtTime(0,at); g.gain.linearRampToValueAtTime(0.2,at+0.03); g.gain.exponentialRampToValueAtTime(0.001,at+1.6);
+        o.connect(g); g.connect(master); o.start(at); o.stop(at+1.7);
       });
+      crearWhooshConfetti(audioCtx,master,mvpRevealAt);
+      crearRugidoHinchada(audioCtx,master,mvpRevealAt,2.8);
     }
 
     master.gain.setValueAtTime(master.gain.value,finAt-0.7);
@@ -1596,7 +1707,9 @@ async function compartirPartidoVideo(id,e) {
   const eq1Nombre=p.nombreEq1||'Equipo 1', eq2Nombre=p.nombreEq2||'Equipo 2';
   const grupos=[[eq1Nombre,p.eq1||[]],[eq2Nombre,p.eq2||[]]].filter(([,ids])=>ids.length);
   const introMs=grupos.reduce((s,[,ids])=>s+PRESENT_VIDEO_TITULO_MS+ids.length*PRESENT_VIDEO_JUGADOR_MS,0);
-  const audio=iniciarAudioSuspensoVideo(introMs,PRESENT_VIDEO_RESULTADO_MS,figuraId?PRESENT_VIDEO_PREMIO_MS:0);
+  const audio=iniciarAudioSuspensoVideo(introMs,PRESENT_VIDEO_RESULTADO_MS,figuraId?PRESENT_VIDEO_MVP_ANUNCIO_MS:0,figuraId?PRESENT_VIDEO_MVP_REVEAL_MS:0);
+  const figuraJugador=figuraId?DB.jugadores.find(x=>x.id===figuraId):null;
+  const figuraImg=figuraJugador&&figuraJugador.foto?await cargarImagen(figuraJugador.foto):null;
 
   try {
     const W=800,H=1000;
@@ -1623,14 +1736,17 @@ async function compartirPartidoVideo(id,e) {
       for(const jid of ids){
         const j=DB.jugadores.find(x=>x.id===jid);
         if(!j) continue;
-        await dibujarFrameJugadorVideo(ctx,W,H,j,color);
+        await dibujarFrameJugadorVideo(ctx,W,H,j,color,nombreEq);
         await esperar(PRESENT_VIDEO_JUGADOR_MS);
       }
     }
 
     await animarFrameResultadoVideo(ctx,W,H,p,eq1Nombre,eq2Nombre,PRESENT_VIDEO_RESULTADO_MS);
 
-    if(figuraId) await animarFramePremioVideo(ctx,W,H,getNombre(figuraId),figuraVal,PRESENT_VIDEO_PREMIO_MS);
+    if(figuraId){
+      await animarFrameAnuncioMvpVideo(ctx,W,H,PRESENT_VIDEO_MVP_ANUNCIO_MS);
+      await animarFramePremioVideo(ctx,W,H,getNombre(figuraId),figuraVal,figuraImg,PRESENT_VIDEO_MVP_REVEAL_MS);
+    }
 
     ctx.clearRect(0,0,W,H);
     ctx.drawImage(canvasResultado,0,0);
