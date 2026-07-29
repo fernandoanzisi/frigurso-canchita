@@ -1378,6 +1378,10 @@ const PRESENT_VIDEO_TITULO_MS=1100, PRESENT_VIDEO_JUGADOR_MS=1400, PRESENT_VIDEO
   PRESENT_VIDEO_MVP_ANUNCIO_MS=1800, PRESENT_VIDEO_MVP_REVEAL_MS=4500, PRESENT_VIDEO_AFICHE_MS=4000;
 const PRESENT_VIDEO_TEAM_COLORS=['#38bdf8','#fb923c'];
 
+function buscarJugadorVideo(id) {
+  return DB.jugadores.find(x=>x.id===id)||(DB.papelera||[]).find(x=>x.id===id)||{id,nombre:getNombre(id),foto:null};
+}
+
 function cargarImagen(src) {
   return new Promise(res=>{
     const img=new Image();
@@ -1733,7 +1737,7 @@ async function compartirPartidoVideo(id,e) {
   const golIds=Object.keys(conteoGoles).sort((a,b)=>conteoGoles[b]-conteoGoles[a]);
   const goleadoresMs=golIds.length?PRESENT_VIDEO_TITULO_MS+golIds.length*PRESENT_VIDEO_JUGADOR_MS:0;
   const audio=iniciarAudioSuspensoVideo(introMs,PRESENT_VIDEO_RESULTADO_MS,goleadoresMs,figuraId?PRESENT_VIDEO_MVP_ANUNCIO_MS:0,figuraId?PRESENT_VIDEO_MVP_REVEAL_MS:0);
-  const figuraJugador=figuraId?DB.jugadores.find(x=>x.id===figuraId):null;
+  const figuraJugador=figuraId?buscarJugadorVideo(figuraId):null;
 
   try {
     const W=800,H=1000;
@@ -1758,8 +1762,7 @@ async function compartirPartidoVideo(id,e) {
       dibujarFrameTituloVideo(ctx,W,H,nombreEq,color);
       await esperar(PRESENT_VIDEO_TITULO_MS);
       for(const jid of ids){
-        const j=DB.jugadores.find(x=>x.id===jid);
-        if(!j) continue;
+        const j=buscarJugadorVideo(jid);
         await dibujarFrameJugadorVideo(ctx,W,H,j,color,nombreEq);
         await esperar(PRESENT_VIDEO_JUGADOR_MS);
       }
@@ -1771,8 +1774,7 @@ async function compartirPartidoVideo(id,e) {
       dibujarFrameTituloVideo(ctx,W,H,'⚽ Goleadores','#fbbf24');
       await esperar(PRESENT_VIDEO_TITULO_MS);
       for(const jid of golIds){
-        const j=DB.jugadores.find(x=>x.id===jid);
-        if(!j) continue;
+        const j=buscarJugadorVideo(jid);
         await dibujarFrameGoleadorVideo(ctx,W,H,j,conteoGoles[jid]);
         await esperar(PRESENT_VIDEO_JUGADOR_MS);
       }
