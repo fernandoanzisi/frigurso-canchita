@@ -138,6 +138,7 @@
   .goles-lista-editar{display:flex;flex-direction:column;gap:5px;margin-top:6px}
   .gol-row{display:flex;align-items:center;gap:8px}
   .gol-row select.input{flex:1;padding:8px 10px}
+  .gol-row .gol-cant{width:52px;flex-shrink:0;padding:8px 6px;text-align:center}
   .gol-row button{flex-shrink:0;width:32px;height:32px;border-radius:8px;background:rgba(248,113,113,.15);color:var(--red);border:none;font-size:16px;display:flex;align-items:center;justify-content:center}
   .label-btn{display:block;width:100%;padding:12px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--text3);font-size:14px;font-weight:600;text-align:center;cursor:pointer;margin-bottom:8px}
 
@@ -1825,7 +1826,7 @@ function abrirModalPartido(id) {
   document.getElementById('p-eq2-nombre').value=p?(p.nombreEq2||''):'';
   _eq1Sel=p?[...(p.eq1||[])]:[];
   _eq2Sel=p?[...(p.eq2||[])]:[];
-  _golesEditar=p?(p.goles||[]).map(g=>({...g})):[];
+  _golesEditar=p?agruparGoles(p.goles||[]):[];
   _suspendido=p?!!p.suspendido:false;
   _califEditar=p?{...(p.calificaciones||{})}:{};
   _cuotaEditar=p?JSON.parse(JSON.stringify(p.cuotaPagos||{})):{};
@@ -1927,25 +1928,39 @@ function sortearEquiposModalPartido() {
   toast('🔀 Equipos sorteados');
 }
 
-function updateGolesInput(){renderGolesEditar(true);}
+function agruparGoles(golesFlat){
+  const rows=[];
+  golesFlat.forEach(g=>{
+    const ex=rows.find(r=>r.jugId===g.jugId&&r.eq===(g.eq||1));
+    if(ex) ex.cant++;
+    else rows.push({jugId:g.jugId,eq:g.eq||1,cant:1});
+  });
+  return rows;
+}
 
-function renderGolesEditar(sync=false) {
+function updateGolesInput(){renderGolesEditar();}
+
+function renderGolesEditar() {
   const g1=parseInt(document.getElementById('p-g1').value)||0;
   const g2=parseInt(document.getElementById('p-g2').value)||0;
   const total=g1+g2;
+  const cargados=_golesEditar.reduce((s,g)=>s+(parseInt(g.cant)||1),0);
   const allJugs=DB.jugadores.filter(j=>_eq1Sel.includes(j.id)||_eq2Sel.includes(j.id));
   const c=document.getElementById('goles-editar');
-  while(_golesEditar.length<total) _golesEditar.push({jugId:'',eq:1});
-  if(sync&&_golesEditar.length>total) _golesEditar=_golesEditar.slice(0,total);
+  const hintId='goles-editar-hint';
+  let hint=document.getElementById(hintId);
+  if(!hint){hint=document.createElement('div');hint.id=hintId;hint.style.cssText='font-size:11px;color:var(--text3);margin-bottom:6px';c.parentNode.insertBefore(hint,c);}
+  hint.textContent=total?('Goleadores cargados: '+cargados+' / '+total+' (marcador)'):'';
   if(!allJugs.length){c.innerHTML='<div style="font-size:12px;color:var(--text3)">Seleccioná los jugadores primero</div>';return;}
   c.innerHTML=_golesEditar.map((g,i)=>{
     const opts=allJugs.map(j=>'<option value="'+j.id+'" '+(g.jugId===j.id?'selected':'')+'>'+esc(j.nombre)+'</option>').join('');
     return '<div class="gol-row"><select class="input" onchange="_golesEditar['+i+'].jugId=this.value"><option value="">— Jugador —</option>'+opts+'</select>'+
+      '<input type="number" class="input gol-cant" min="1" max="99" value="'+(g.cant||1)+'" title="Cantidad de goles" onchange="_golesEditar['+i+'].cant=parseInt(this.value)||1;renderGolesEditar()">'+
       '<button onclick="_golesEditar.splice('+i+',1);renderGolesEditar()">✕</button></div>';
   }).join('');
 }
 
-function agregarFilaGol(){_golesEditar.push({jugId:'',eq:1});renderGolesEditar();}
+function agregarFilaGol(){_golesEditar.push({jugId:'',eq:1,cant:1});renderGolesEditar();}
 
 function guardarPartido() {
   const fecha=document.getElementById('p-fecha').value;
@@ -1967,7 +1982,13 @@ function guardarPartido() {
   const costoReal=parseFloat(document.getElementById('p-costo-real').value)||undefined;
   const cuotaPagos={};
   if(cuotaMonto) Object.keys(_cuotaEditar).forEach(jid=>{if(eqTodos.has(jid)&&_cuotaEditar[jid].pagado)cuotaPagos[jid]={...(_cuotaEditar[jid])};});
-  const data={id:id||uid(),fecha,g1,g2,eq1:[..._eq1Sel],eq2:[..._eq2Sel],goles:_golesEditar.filter(g=>g.jugId),nota:nota||undefined,nombreEq1:nombreEq1||undefined,nombreEq2:nombreEq2||undefined,suspendido:_suspendido||undefined,calificaciones:Object.keys(calificaciones).length?calificaciones:undefined,torneoId,torneoEq1Id,torneoEq2Id,formato,cuotaMonto,cuotaPagos:cuotaMonto&&Object.keys(cuotaPagos).length?cuotaPagos:undefined,costoReal};
+  const golesFlat=[];
+  _golesEditar.forEach(g=>{
+    if(!g.jugId) return;
+    const cant=Math.max(1,parseInt(g.cant)||1);
+    for(let k=0;k<cant;k++) golesFlat.push({jugId:g.jugId,eq:g.eq||1});
+  });
+  const data={id:id||uid(),fecha,g1,g2,eq1:[..._eq1Sel],eq2:[..._eq2Sel],goles:golesFlat,nota:nota||undefined,nombreEq1:nombreEq1||undefined,nombreEq2:nombreEq2||undefined,suspendido:_suspendido||undefined,calificaciones:Object.keys(calificaciones).length?calificaciones:undefined,torneoId,torneoEq1Id,torneoEq2Id,formato,cuotaMonto,cuotaPagos:cuotaMonto&&Object.keys(cuotaPagos).length?cuotaPagos:undefined,costoReal};
   if(!nota) delete data.nota;
   if(!nombreEq1) delete data.nombreEq1;
   if(!nombreEq2) delete data.nombreEq2;
