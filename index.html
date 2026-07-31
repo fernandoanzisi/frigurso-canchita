@@ -709,6 +709,14 @@ function avatarHtml(j) {
                 : '<div class="jugador-avatar">'+iniciales(j.nombre)+'</div>';
 }
 function getNombre(id) { const j=DB.jugadores.find(j=>j.id===id)||(DB.papelera||[]).find(j=>j.id===id); return j?j.nombre:'?'; }
+function getFiguras(p) {
+  if(!p||!p.calificaciones) return {ids:[],val:null};
+  let val=-1;
+  Object.values(p.calificaciones).forEach(v=>{if(v>val) val=v;});
+  if(val<0) return {ids:[],val:null};
+  const ids=Object.keys(p.calificaciones).filter(jid=>p.calificaciones[jid]===val);
+  return {ids,val};
+}
 function fmtFecha(s) { if(!s) return ''; const [y,m,d]=s.split('-'); return d+'/'+m+'/'+y; }
 function fmtMes(s) {
   if(!s) return '';
@@ -1205,10 +1213,12 @@ function renderPartidoCard(p) {
     ?Object.keys(conteoGolesCard).map(jid=>'<span class="gol-chip">⚽ '+esc(getNombre(jid))+(conteoGolesCard[jid]>1?' x'+conteoGolesCard[jid]:'')+'</span>').join('')
     :'<span style="font-size:11px;color:var(--text3)">Sin goleadores registrados</span>';
   let figuraHtml='';
-  if(!p.suspendido&&p.calificaciones&&Object.keys(p.calificaciones).length){
-    let bestId=null,bestVal=-1;
-    Object.entries(p.calificaciones).forEach(([jid,val])=>{if(val>bestVal){bestVal=val;bestId=jid;}});
-    if(bestId) figuraHtml='<div class="partido-nota">⭐ Figura del partido: '+esc(getNombre(bestId))+' ('+bestVal+')</div>';
+  if(!p.suspendido){
+    const {ids:figuraIds,val:figuraVal}=getFiguras(p);
+    if(figuraIds.length){
+      const etiqueta=figuraIds.length>1?'Figuras del partido':'Figura del partido';
+      figuraHtml='<div class="partido-nota">⭐ '+etiqueta+': '+figuraIds.map(id=>esc(getNombre(id))).join(', ')+' ('+figuraVal+')</div>';
+    }
   }
   const formatoHtml=p.formato?' <span class="tag" style="background:rgba(96,165,250,.15);color:var(--blue)">'+p.formato+'</span>':'';
   let cuotaHtml='';
@@ -1282,8 +1292,7 @@ function wrapCanvasText(ctx,text,x,y,maxWidth,lineHeight) {
 
 function dibujarCanvasResultado(p) {
   const eq1Nombre=p.nombreEq1||'Equipo 1', eq2Nombre=p.nombreEq2||'Equipo 2';
-  let figuraId=null,figuraVal=-1;
-  if(p.calificaciones) Object.entries(p.calificaciones).forEach(([jid,val])=>{if(val>figuraVal){figuraVal=val;figuraId=jid;}});
+  const {ids:figuraIds,val:figuraVal}=getFiguras(p);
   const W=800,H=1000;
   const canvas=document.createElement('canvas');
   canvas.width=W; canvas.height=H;
@@ -1347,14 +1356,15 @@ function dibujarCanvasResultado(p) {
       ctx.fillStyle='#5a7a5a'; ctx.fillText('Sin goleadores registrados',W/2,y); y+=28;
     }
 
-    if(figuraId){
+    if(figuraIds.length){
       y+=20;
       ctx.fillStyle='#fbbf24'; ctx.font='bold 22px sans-serif';
-      ctx.fillText('⭐ Figura: '+getNombre(figuraId)+' ('+figuraVal+')',W/2,y);
+      const etiqueta=figuraIds.length>1?'Figuras':'Figura';
+      y+=wrapCanvasText(ctx,'⭐ '+etiqueta+': '+figuraIds.map(getNombre).join(', ')+' ('+figuraVal+')',W/2,y,700,26);
     }
     if(p.nota){ ctx.fillStyle='#5a7a5a'; ctx.font='16px sans-serif'; ctx.fillText('📝 '+p.nota,W/2,H-60); }
 
-    caption='⚽ Frigurso Canchita — '+fmtFecha(p.fecha)+' · '+eq1Nombre+' '+g1+'-'+g2+' '+eq2Nombre+(figuraId?' · MVP: '+getNombre(figuraId):'');
+    caption='⚽ Frigurso Canchita — '+fmtFecha(p.fecha)+' · '+eq1Nombre+' '+g1+'-'+g2+' '+eq2Nombre+(figuraIds.length?' · MVP: '+figuraIds.map(getNombre).join(', '):'');
   }
 
   ctx.fillStyle='#2a3e2a'; ctx.font='14px sans-serif';
@@ -1371,14 +1381,13 @@ function dibujarCanvasResumen(p) {
   const conteoGoles={};
   (p.goles||[]).forEach(g=>{conteoGoles[g.jugId]=(conteoGoles[g.jugId]||0)+1;});
   const califs=p.calificaciones||{};
-  let figuraId=null,figuraVal=-1;
-  Object.entries(califs).forEach(([jid,val])=>{if(val>figuraVal){figuraVal=val;figuraId=jid;}});
+  const {ids:figuraIds,val:figuraVal}=getFiguras(p);
 
   const W=800, TOP=280, rowH=32;
   const block1=32+Math.max(eq1.length,1)*rowH+14;
   const block2=32+Math.max(eq2.length,1)*rowH+14;
   let H=TOP+block1+block2+60;
-  if(figuraId) H+=50;
+  if(figuraIds.length) H+=50+Math.max(0,figuraIds.length-1)*28;
   if(p.nota) H+=30;
 
   const canvas=document.createElement('canvas');
@@ -1416,7 +1425,7 @@ function dibujarCanvasResumen(p) {
       ctx.fillStyle='#5a7a5a'; ctx.font='16px sans-serif'; ctx.fillText('Sin jugadores',80,y); y+=rowH; return;
     }
     jugadores.forEach(jid=>{
-      const esFigura=jid===figuraId;
+      const esFigura=figuraIds.includes(jid);
       ctx.textAlign='left';
       ctx.fillStyle=esFigura?'#fbbf24':'#e8f5e8'; ctx.font=(esFigura?'bold ':'')+'18px sans-serif';
       ctx.fillText((esFigura?'⭐ ':'')+getNombre(jid),80,y);
@@ -1435,18 +1444,19 @@ function dibujarCanvasResumen(p) {
   seccionEquipo(eq1Nombre,eq1,col1);
   seccionEquipo(eq2Nombre,eq2,col2);
 
-  if(figuraId){
+  if(figuraIds.length){
+    y+=10;
     ctx.textAlign='center';
     ctx.fillStyle='#fbbf24'; ctx.font='bold 22px sans-serif';
-    ctx.fillText('⭐ Figura del partido: '+getNombre(figuraId)+' ('+figuraVal+'/10)',W/2,y+10);
-    y+=50;
+    const etiqueta=figuraIds.length>1?'Figuras del partido':'Figura del partido';
+    y+=wrapCanvasText(ctx,'⭐ '+etiqueta+': '+figuraIds.map(getNombre).join(', ')+' ('+figuraVal+'/10)',W/2,y,700,28);
   }
   if(p.nota){ ctx.textAlign='center'; ctx.fillStyle='#5a7a5a'; ctx.font='16px sans-serif'; ctx.fillText('📝 '+p.nota,W/2,y+10); y+=30; }
 
   ctx.textAlign='center'; ctx.fillStyle='#2a3e2a'; ctx.font='14px sans-serif';
   ctx.fillText('Generado con Frigurso Canchita',W/2,H-24);
 
-  const caption='⚽ Frigurso Canchita — '+fmtFecha(p.fecha)+' · '+eq1Nombre+' '+g1+'-'+g2+' '+eq2Nombre+(figuraId?' · Figura: '+getNombre(figuraId):'');
+  const caption='⚽ Frigurso Canchita — '+fmtFecha(p.fecha)+' · '+eq1Nombre+' '+g1+'-'+g2+' '+eq2Nombre+(figuraIds.length?' · Figura: '+figuraIds.map(getNombre).join(', '):'');
   return {canvas,caption};
 }
 
@@ -1608,7 +1618,7 @@ function animarFrameResultadoVideo(ctx,W,H,p,eq1Nombre,eq2Nombre,durationMs) {
   });
 }
 
-function dibujarFrameAnuncioMvpVideo(ctx,W,H,t) {
+function dibujarFrameAnuncioMvpVideo(ctx,W,H,t,plural) {
   dibujarFondoPresentVideo(ctx,W,H);
   ctx.textAlign='center';
   const a1=Math.min(1,t/300);
@@ -1619,16 +1629,16 @@ function dibujarFrameAnuncioMvpVideo(ctx,W,H,t) {
   const a2=Math.max(0,Math.min(1,(t-450)/350));
   ctx.globalAlpha=a2;
   ctx.fillStyle='#fff'; ctx.font='bold 40px sans-serif';
-  wrapCanvasText(ctx,'EL MEJOR JUGADOR DEL PARTIDO',W/2,H/2+50,650,48);
+  wrapCanvasText(ctx,plural?'LOS MEJORES JUGADORES DEL PARTIDO':'EL MEJOR JUGADOR DEL PARTIDO',W/2,H/2+50,650,48);
   ctx.globalAlpha=1;
 }
 
-function animarFrameAnuncioMvpVideo(ctx,W,H,durationMs) {
+function animarFrameAnuncioMvpVideo(ctx,W,H,durationMs,plural) {
   const start=performance.now();
   return new Promise(resolve=>{
     function tick(){
       const t=performance.now()-start;
-      dibujarFrameAnuncioMvpVideo(ctx,W,H,t);
+      dibujarFrameAnuncioMvpVideo(ctx,W,H,t,plural);
       if(t<durationMs) requestAnimationFrame(tick); else resolve();
     }
     requestAnimationFrame(tick);
@@ -1644,7 +1654,7 @@ function crearConfettiPremio(W,H) {
   }));
 }
 
-function dibujarFramePremioVideo(ctx,W,H,confetti,t,nombre,val,img) {
+function dibujarFramePremioVideo(ctx,W,H,confetti,t,nombres,val,imgs) {
   const grad=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)/1.1);
   grad.addColorStop(0,'#1c1712'); grad.addColorStop(0.55,'#100d0a'); grad.addColorStop(1,'#050403');
   ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
@@ -1655,36 +1665,44 @@ function dibujarFramePremioVideo(ctx,W,H,confetti,t,nombre,val,img) {
     ctx.fillStyle=c.color; ctx.fillRect(-c.size/2,-c.size/1.6,c.size,c.size*1.3);
     ctx.restore();
   });
+  const n=nombres.length;
   ctx.textAlign='center';
   ctx.fillStyle='#fbbf24'; ctx.font='bold 25px sans-serif';
-  ctx.fillText('🏆 MEJOR JUGADOR DE LA CANCHA 🏆',W/2,80);
+  ctx.fillText(n>1?'🏆 MEJORES JUGADORES DE LA CANCHA 🏆':'🏆 MEJOR JUGADOR DE LA CANCHA 🏆',W/2,80);
   const bounce=Math.sin(t/1100*Math.PI*2)*8;
-  const cx=W/2, cy=H/2-60+bounce*0.3, r=125;
-  ctx.save();
-  ctx.beginPath(); ctx.arc(cx,cy,r+7,0,Math.PI*2); ctx.closePath();
-  ctx.strokeStyle='#fbbf24'; ctx.lineWidth=7; ctx.stroke();
-  ctx.restore();
-  ctx.save();
-  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.closePath(); ctx.clip();
-  dibujarFotoCircularVideo(ctx,cx,cy,r,img,nombre,'#fbbf24');
-  ctx.restore();
-  ctx.font='64px sans-serif';
-  ctx.fillText('🏆',cx+r*0.8,cy-r*0.7+bounce);
-  ctx.fillStyle='#fff'; ctx.font='bold 46px sans-serif';
-  wrapCanvasText(ctx,nombre,W/2,cy+r+70,700,52);
+  const r=n===1?125:n===2?100:78;
+  const cy=H/2-60+bounce*0.3;
+  const spacing=r*2.25;
+  const startX=W/2-spacing*(n-1)/2;
+  nombres.forEach((nombre,i)=>{
+    const cx=n===1?W/2:startX+i*spacing;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx,cy,r+7,0,Math.PI*2); ctx.closePath();
+    ctx.strokeStyle='#fbbf24'; ctx.lineWidth=7; ctx.stroke();
+    ctx.restore();
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.closePath(); ctx.clip();
+    dibujarFotoCircularVideo(ctx,cx,cy,r,imgs[i],nombre,'#fbbf24');
+    ctx.restore();
+  });
+  ctx.font=(n===1?64:48)+'px sans-serif';
+  const ultimoCx=n===1?W/2:startX+(n-1)*spacing;
+  ctx.fillText('🏆',ultimoCx+r*0.8,cy-r*0.7+bounce);
+  ctx.fillStyle='#fff'; ctx.font='bold '+(n===1?46:34)+'px sans-serif';
+  wrapCanvasText(ctx,nombres.join(' & '),W/2,cy+r+70,700,n===1?52:40);
   ctx.fillStyle='#fbbf24'; ctx.font='bold 25px sans-serif';
-  ctx.fillText('🥇 BOTA DE ORO FRIGURSO',W/2,cy+r+118);
+  ctx.fillText(n>1?'🥇 BOTAS DE ORO FRIGURSO':'🥇 BOTA DE ORO FRIGURSO',W/2,cy+r+118);
   ctx.fillStyle='#d8c8a8'; ctx.font='21px sans-serif';
   ctx.fillText('¡Felicitaciones! Puntaje del partido: '+val+'/10 ⭐',W/2,cy+r+155);
 }
 
-function animarFramePremioVideo(ctx,W,H,nombre,val,img,durationMs) {
+function animarFramePremioVideo(ctx,W,H,nombres,val,imgs,durationMs) {
   const confetti=crearConfettiPremio(W,H);
   const start=performance.now();
   return new Promise(resolve=>{
     function tick(){
       const t=performance.now()-start;
-      dibujarFramePremioVideo(ctx,W,H,confetti,t,nombre,val,img);
+      dibujarFramePremioVideo(ctx,W,H,confetti,t,nombres,val,imgs);
       if(t<durationMs) requestAnimationFrame(tick); else resolve();
     }
     requestAnimationFrame(tick);
@@ -1812,8 +1830,7 @@ async function compartirPartidoVideo(id,e) {
   const p=DB.partidos.find(x=>x.id===id); if(!p) return;
   const btn=e.currentTarget;
   const {canvas:canvasResultado,caption}=dibujarCanvasResultado(p);
-  let figuraId=null,figuraVal=-1;
-  if(p.calificaciones) Object.entries(p.calificaciones).forEach(([jid,val])=>{if(val>figuraVal){figuraVal=val;figuraId=jid;}});
+  const {ids:figuraIds,val:figuraVal}=getFiguras(p);
 
   const idsJugadores=[...(p.eq1||[]),...(p.eq2||[])];
   const soportaVideo=window.MediaRecorder&&HTMLCanvasElement.prototype.captureStream&&
@@ -1834,8 +1851,8 @@ async function compartirPartidoVideo(id,e) {
   (p.goles||[]).forEach(g=>{conteoGoles[g.jugId]=(conteoGoles[g.jugId]||0)+1;});
   const golIds=Object.keys(conteoGoles).sort((a,b)=>conteoGoles[b]-conteoGoles[a]);
   const goleadoresMs=golIds.length?PRESENT_VIDEO_TITULO_MS+golIds.length*PRESENT_VIDEO_JUGADOR_MS:0;
-  const audio=iniciarAudioSuspensoVideo(introMs,PRESENT_VIDEO_RESULTADO_MS,goleadoresMs,figuraId?PRESENT_VIDEO_MVP_ANUNCIO_MS:0,figuraId?PRESENT_VIDEO_MVP_REVEAL_MS:0);
-  const figuraJugador=figuraId?buscarJugadorVideo(figuraId):null;
+  const audio=iniciarAudioSuspensoVideo(introMs,PRESENT_VIDEO_RESULTADO_MS,goleadoresMs,figuraIds.length?PRESENT_VIDEO_MVP_ANUNCIO_MS:0,figuraIds.length?PRESENT_VIDEO_MVP_REVEAL_MS:0);
+  const figuraJugadores=figuraIds.map(buscarJugadorVideo);
 
   try {
     const W=800,H=1000;
@@ -1878,10 +1895,10 @@ async function compartirPartidoVideo(id,e) {
       }
     }
 
-    if(figuraId){
-      await animarFrameAnuncioMvpVideo(ctx,W,H,PRESENT_VIDEO_MVP_ANUNCIO_MS);
-      const figuraImg=figuraJugador&&figuraJugador.foto?await cargarImagen(figuraJugador.foto):null;
-      await animarFramePremioVideo(ctx,W,H,getNombre(figuraId),figuraVal,figuraImg,PRESENT_VIDEO_MVP_REVEAL_MS);
+    if(figuraIds.length){
+      await animarFrameAnuncioMvpVideo(ctx,W,H,PRESENT_VIDEO_MVP_ANUNCIO_MS,figuraIds.length>1);
+      const figuraImgs=await Promise.all(figuraJugadores.map(j=>j&&j.foto?cargarImagen(j.foto):Promise.resolve(null)));
+      await animarFramePremioVideo(ctx,W,H,figuraIds.map(getNombre),figuraVal,figuraImgs,PRESENT_VIDEO_MVP_REVEAL_MS);
     }
 
     ctx.clearRect(0,0,W,H);
