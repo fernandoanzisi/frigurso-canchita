@@ -1199,8 +1199,10 @@ function renderPartidoCard(p) {
   const marcadorHtml=p.suspendido
     ?'<span class="tag" style="background:rgba(248,113,113,.15);color:var(--red)">SUSPENDIDO</span>'
     :'<span style="color:'+col1+'">'+g1+'</span> - <span style="color:'+col2+'">'+g2+'</span>';
+  const conteoGolesCard={};
+  (p.goles||[]).forEach(g=>{conteoGolesCard[g.jugId]=(conteoGolesCard[g.jugId]||0)+1;});
   const golesHtml=(p.goles||[]).length
-    ?(p.goles||[]).map(g=>'<span class="gol-chip">⚽ '+esc(getNombre(g.jugId))+'</span>').join('')
+    ?Object.keys(conteoGolesCard).map(jid=>'<span class="gol-chip">⚽ '+esc(getNombre(jid))+(conteoGolesCard[jid]>1?' x'+conteoGolesCard[jid]:'')+'</span>').join('')
     :'<span style="font-size:11px;color:var(--text3)">Sin goleadores registrados</span>';
   let figuraHtml='';
   if(!p.suspendido&&p.calificaciones&&Object.keys(p.calificaciones).length){
