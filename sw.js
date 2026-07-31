@@ -1,4 +1,4 @@
-const CACHE = 'canchita-v13';
+const CACHE = 'canchita-v14';
 const PRECACHE = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', e => {

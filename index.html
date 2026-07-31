@@ -1225,6 +1225,7 @@ function renderPartidoCard(p) {
   return '<div class="partido-card'+(p.suspendido?' suspendido':'')+'" onclick="abrirModalPartido(\''+p.id+'\')">'+
     '<div class="partido-fecha"><span>🗓 '+fmtFecha(p.fecha)+formatoHtml+(p.suspendido?' · <span style="color:var(--red)">suspendido</span>':'')+'</span><span>'+
       '<button class="btn-share" onclick="compartirPartidoVideo(\''+p.id+'\',event)" title="Compartir resultado">🎬</button>'+
+      '<button class="btn-share" onclick="compartirResumenPartido(\''+p.id+'\',event)" title="Compartir resumen (foto con planteles, goleadores, figura y puntajes)">📋</button>'+
     '</span></div>'+
     '<div class="partido-resultado">'+
       '<div class="partido-equipo"><div class="partido-eq-nombre">⚪ '+esc(eq1Nombre)+'</div><div class="partido-eq-nombres">'+esc(eq1Names)+'</div></div>'+
@@ -1360,6 +1361,100 @@ function dibujarCanvasResultado(p) {
   ctx.fillText('Generado con Frigurso Canchita',W/2,H-24);
 
   return {canvas,caption};
+}
+
+function dibujarCanvasResumen(p) {
+  if(p.suspendido) return dibujarCanvasResultado(p);
+  const eq1Nombre=p.nombreEq1||'Equipo 1', eq2Nombre=p.nombreEq2||'Equipo 2';
+  const eq1=p.eq1||[], eq2=p.eq2||[];
+  const g1=p.g1||0,g2=p.g2||0;
+  const conteoGoles={};
+  (p.goles||[]).forEach(g=>{conteoGoles[g.jugId]=(conteoGoles[g.jugId]||0)+1;});
+  const califs=p.calificaciones||{};
+  let figuraId=null,figuraVal=-1;
+  Object.entries(califs).forEach(([jid,val])=>{if(val>figuraVal){figuraVal=val;figuraId=jid;}});
+
+  const W=800, TOP=280, rowH=32;
+  const block1=32+Math.max(eq1.length,1)*rowH+14;
+  const block2=32+Math.max(eq2.length,1)*rowH+14;
+  let H=TOP+block1+block2+60;
+  if(figuraId) H+=50;
+  if(p.nota) H+=30;
+
+  const canvas=document.createElement('canvas');
+  canvas.width=W; canvas.height=H;
+  const ctx=canvas.getContext('2d');
+
+  const grad=ctx.createLinearGradient(0,0,W,H);
+  grad.addColorStop(0,'#0f1a0f'); grad.addColorStop(1,'#162016');
+  ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
+
+  ctx.textAlign='center';
+  ctx.fillStyle='#4ade80'; ctx.font='bold 32px sans-serif';
+  ctx.fillText('⚽ FRIGURSO CANCHITA',W/2,70);
+  ctx.fillStyle='#a8c8a8'; ctx.font='18px sans-serif';
+  ctx.fillText(fmtFecha(p.fecha)+(p.formato?' · '+p.formato:''),W/2,100);
+
+  const col1=g1>g2?'#4ade80':g1<g2?'#f87171':'#e8f5e8';
+  const col2=g2>g1?'#4ade80':g2<g1?'#f87171':'#e8f5e8';
+
+  let y=170;
+  ctx.font='bold 24px sans-serif';
+  ctx.fillStyle=col1; ctx.textAlign='right'; ctx.fillText(eq1Nombre,W/2-70,y+10);
+  ctx.fillStyle=col2; ctx.textAlign='left'; ctx.fillText(eq2Nombre,W/2+70,y+10);
+  ctx.textAlign='center'; ctx.fillStyle='#e8f5e8'; ctx.font='bold 44px monospace';
+  ctx.fillText(g1+' - '+g2,W/2,y+10);
+
+  y+=70;
+  ctx.strokeStyle='#2a3e2a'; ctx.beginPath(); ctx.moveTo(60,y); ctx.lineTo(W-60,y); ctx.stroke();
+  y+=40;
+
+  function seccionEquipo(nombre,jugadores,color){
+    ctx.textAlign='left'; ctx.fillStyle=color; ctx.font='bold 20px sans-serif';
+    ctx.fillText('● '+nombre,60,y); y+=32;
+    if(!jugadores.length){
+      ctx.fillStyle='#5a7a5a'; ctx.font='16px sans-serif'; ctx.fillText('Sin jugadores',80,y); y+=rowH; return;
+    }
+    jugadores.forEach(jid=>{
+      const esFigura=jid===figuraId;
+      ctx.textAlign='left';
+      ctx.fillStyle=esFigura?'#fbbf24':'#e8f5e8'; ctx.font=(esFigura?'bold ':'')+'18px sans-serif';
+      ctx.fillText((esFigura?'⭐ ':'')+getNombre(jid),80,y);
+      let badges='';
+      if(conteoGoles[jid]) badges+='⚽'+(conteoGoles[jid]>1?'x'+conteoGoles[jid]:'')+'  ';
+      if(califs[jid]!=null) badges+=califs[jid]+'/10';
+      if(badges){
+        ctx.textAlign='right'; ctx.fillStyle='#a8c8a8'; ctx.font='16px sans-serif';
+        ctx.fillText(badges.trim(),W-60,y);
+      }
+      y+=rowH;
+    });
+    y+=14;
+  }
+
+  seccionEquipo(eq1Nombre,eq1,col1);
+  seccionEquipo(eq2Nombre,eq2,col2);
+
+  if(figuraId){
+    ctx.textAlign='center';
+    ctx.fillStyle='#fbbf24'; ctx.font='bold 22px sans-serif';
+    ctx.fillText('⭐ Figura del partido: '+getNombre(figuraId)+' ('+figuraVal+'/10)',W/2,y+10);
+    y+=50;
+  }
+  if(p.nota){ ctx.textAlign='center'; ctx.fillStyle='#5a7a5a'; ctx.font='16px sans-serif'; ctx.fillText('📝 '+p.nota,W/2,y+10); y+=30; }
+
+  ctx.textAlign='center'; ctx.fillStyle='#2a3e2a'; ctx.font='14px sans-serif';
+  ctx.fillText('Generado con Frigurso Canchita',W/2,H-24);
+
+  const caption='⚽ Frigurso Canchita — '+fmtFecha(p.fecha)+' · '+eq1Nombre+' '+g1+'-'+g2+' '+eq2Nombre+(figuraId?' · Figura: '+getNombre(figuraId):'');
+  return {canvas,caption};
+}
+
+function compartirResumenPartido(id,e) {
+  if(e) e.stopPropagation();
+  const p=DB.partidos.find(x=>x.id===id); if(!p) return;
+  const {canvas,caption}=dibujarCanvasResumen(p);
+  compartirImagenCanvas(canvas,caption,p.fecha);
 }
 
 function compartirImagenCanvas(canvas,caption,fecha) {
